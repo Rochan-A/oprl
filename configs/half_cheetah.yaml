@@ -1,0 +1,12 @@
+env: HalfCheetah-v2
+use_obs_filter: False
+
+update_every_n_steps: 1
+n_random_actions: 25000
+n_collect_steps: 1000
+n_evals: 1
+n_quantiles: 50
+bandit_lr: 0.1
+
+save_model: True
+save_path: /mnt/data/rochan/courses/RL/
