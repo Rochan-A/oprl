@@ -1,0 +1,14 @@
+model: one_state
+value_iteration_theta: 0.0001
+
+q_learning:
+  steps: 100
+  alpha: 0.005
+  gamma: 0.9
+  epsilon: 0.1
+
+dq_learning:
+  steps: 1000
+  alpha: 0.005
+  gamma: 0.9
+  epsilon: 0.1

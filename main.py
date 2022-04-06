@@ -22,9 +22,8 @@ from gym.wrappers import RescaleAction
 import pdb
 from torch.utils.tensorboard import SummaryWriter
 
-from agents import TOPAgent
+from policies import TOPAgent
 from learners import top_trainer as train
-
 
 
 if __name__ == '__main__':
