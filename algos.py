@@ -6,12 +6,13 @@ from tqdm import tqdm
 
 
 
-def value_iteration(env, initV:np.array, theta:float, rng) -> Tuple[np.array,Policy]:
+def value_iteration(env, initV:np.array, theta:float, gamma:float, rng) -> Tuple[np.array,Policy]:
     """
     inp:
         env: environment with model information, i.e. you know transition dynamics and reward function
         initV: initial V(s); numpy array shape of [nS,]
         theta: exit criteria
+        gamma: discount factor
         rng: rng
     return:
         value: optimal value function; numpy array shape of [nS]
@@ -33,7 +34,7 @@ def value_iteration(env, initV:np.array, theta:float, rng) -> Tuple[np.array,Pol
             v = initV[s_i]
             s = [0]*env.TD[s_i].shape[0]
             for a_i in range(env.TD[s_i].shape[0]):
-                s[a_i] = np.sum(env.TD[s_i, a_i, :]*(env.R[s_i, a_i, :] + initV[:]))
+                s[a_i] = np.sum(env.TD[s_i, a_i, :]*(env.R[s_i, a_i, :] + gamma*initV[:]))
             initV[s_i] = max(s)
             delta = max(delta, abs(v - initV[s_i]))
         if delta < theta:
@@ -46,7 +47,7 @@ def value_iteration(env, initV:np.array, theta:float, rng) -> Tuple[np.array,Pol
     for s_i in range(nS):
         for a_i in range(nA):
             Q[s_i, a_i] = np.sum([
-                    env.TD[s_i, a_i, s_p]*(env.R[s_i, a_i, s_p] + initV[s_p]) for s_p in range(nS)
+                    env.TD[s_i, a_i, s_p]*(env.R[s_i, a_i, s_p] + gamma*initV[s_p]) for s_p in range(nS)
                     ])
 
     pi = GreedyPolicy(Q, rng)
@@ -84,9 +85,10 @@ def Q_learning(env, n:int, alpha:float, gamma:float, epsilon:float, Q:np.array, 
             a = pi.action(s)
             s1, r, done = env.step(a)
 
-            Q[s,a] += alpha*(r + (gamma*np.argmax(Q[s1, :]) - Q[s, a]))
+            Q[s,a] += alpha*(r + (gamma*np.max(Q[s1, :]) - Q[s, a]))
             s = s1
-            pi.update(Q)
+            pi.update(Q, epsilon)
+        epsilon *= 0.995
 
     return Q
 
@@ -98,7 +100,7 @@ def DoubleQ(env, n:int, alpha:float, gamma:float, epsilon:float, Q1:np.array, Q2
         n: how many steps?
         alpha: learning rate
         gamma: discount factor
-        epslion: epsilon-greedy exploration
+        epsilon: epsilon-greedy exploration
         Q1: initial Q1 function
         Q2: initial Q2 function
         rng: rng
@@ -131,6 +133,7 @@ def DoubleQ(env, n:int, alpha:float, gamma:float, epsilon:float, Q1:np.array, Q2
             Q2[s,a] += alpha*(r + gamma*Q1[s1, np.argmax(Q2[s1, :])] - Q2[s, a])
 
             s = s1
-            pi.update(Q1)
+            pi.update(Q1, epsilon)
+        epsilon *= 0.95
 
     return Q1, Q2

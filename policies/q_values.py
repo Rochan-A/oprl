@@ -64,8 +64,9 @@ class EGPolicy(object):
         for state in range(self.Q.shape[0]):
             self.probs[state, np.argmax(self.Q[state, :])] = 1
 
-    def update(self, Q):
+    def update(self, Q, epsilon):
         self.Q = Q
+        self.epsilon = epsilon
         self.probs = np.zeros(self.Q.shape)
         for state in range(self.Q.shape[0]):
             self.probs[state, np.argmax(self.Q[state, :])] = 1
@@ -76,6 +77,6 @@ class EGPolicy(object):
     def action(self,state):
 
         if self.rng.random(1) < self.epsilon:
-            return self.rng.integers(0, self.Q.shape[-1])
+            return self.rng.integers(0, self.Q.shape[state])
         else:
             return np.argmax(self.Q[state, :])
