@@ -129,8 +129,10 @@ def DoubleQ(env, n:int, alpha:float, gamma:float, epsilon:float, Q1:np.array, Q2
             a = pi.action(s)
             s1, r, done = env.step(a)
 
-            Q1[s,a] += alpha*(r + gamma*Q2[s1, np.argmax(Q1[s1, :])] - Q1[s, a])
-            Q2[s,a] += alpha*(r + gamma*Q1[s1, np.argmax(Q2[s1, :])] - Q2[s, a])
+            if np.random.rand() < 0.5:
+                Q1[s,a] += alpha*(r + gamma*Q2[s1, np.argmax(Q1[s1, :])] - Q1[s, a])
+            else:
+                Q2[s,a] += alpha*(r + gamma*Q1[s1, np.argmax(Q2[s1, :])] - Q2[s, a])
 
             s = s1
             pi.update(Q1, epsilon)
