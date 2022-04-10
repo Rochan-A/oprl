@@ -3,11 +3,17 @@ value_iteration_theta: 0.0001
 gamma: 1
 
 q_learning:
-  steps: 1000
+  steps: 200
   alpha: 0.005
   epsilon: 0.1
 
 dq_learning:
-  steps: 1000
+  steps: 200
   alpha: 0.005
   epsilon: 0.1
+
+pessimistic_q_learning:
+  steps: 200
+  alpha: 0.005
+  epsilon: 0.1
+  pessimism_coeff: 0.1

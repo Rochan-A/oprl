@@ -42,6 +42,41 @@ def plot_overestimation(q_star, Q, DQ1, DQ2):
     plt.savefig('q_dq.png')
     plt.show()
 
+def get_overestimation_time_method(q_star, vl, steps, DQ=False):
+    over = np.zeros(steps)
+    sum = 0
+
+    for i in range(steps):
+        sum_episode = 0
+        sum_episode_qstar = 0
+        for j in range( len(vl[i][0]) ):
+            if DQ:
+                qval = (vl[i][2][j] + vl[i][3][j]) / 2.0
+            else:
+                qval = vl[i][2][j]
+            sum_episode += qval
+            sum_episode_qstar += q_star[ vl[i][0][j], vl[i][1][j] ]
+        avg_episode = sum_episode / len(vl[i][0])
+        avg_episode_qstar = sum_episode_qstar / len(vl[i][0])
+
+        over[i] = avg_episode - avg_episode_qstar
+
+    return over
+
+
+def plot_overestimation_time(q_star, vlQ, vlDQ, vlPQ, config):
+    over_ql = get_overestimation_time_method(q_star, vlQ, config.q_learning.steps)
+    over_dql = get_overestimation_time_method(q_star, vlDQ, config.dq_learning.steps, True)
+    over_pq = get_overestimation_time_method(q_star, vlPQ, config.pessimistic_q_learning.steps)
+
+    plt.figure()
+    plt.plot(np.arange(config.q_learning.steps), over_ql, label="Q learning")
+    plt.plot(np.arange(config.dq_learning.steps), over_dql, label="DQ learning")
+    plt.plot(np.arange(config.pessimistic_q_learning.steps), over_pq, label="PQ learning")
+    plt.legend()
+    plt.show()
+
+
 
 if __name__ == '__main__':
 
@@ -86,7 +121,7 @@ if __name__ == '__main__':
     print('Q Learning')
     Q = np.zeros(shape=(env.spec.nS,env.spec.nA))
     print('Initial Q values\n{}'.format(Q))
-    Q = Q_learning(env, config.q_learning.steps, config.q_learning.alpha, config.gamma, config.q_learning.epsilon, Q, rng)
+    Q, vlQ = Q_learning(env, config.q_learning.steps, config.q_learning.alpha, config.gamma, config.q_learning.epsilon, Q, rng)
     print('Estimated Q Values\n{}'.format(Q))
     print()
 
@@ -95,8 +130,16 @@ if __name__ == '__main__':
     DQ1 = np.zeros(shape=(env.spec.nS,env.spec.nA))
     DQ2 = np.zeros(shape=(env.spec.nS,env.spec.nA))
     print('Initial Q values\nQ1: {}\nQ2: {}'.format(DQ1, DQ2))
-    DQ1, DQ2 = DoubleQ(env, config.dq_learning.steps, config.dq_learning.alpha, config.gamma, config.dq_learning.epsilon, DQ1, DQ2, rng)
+    DQ1, DQ2, vlDQ = DoubleQ(env, config.dq_learning.steps, config.dq_learning.alpha, config.gamma, config.dq_learning.epsilon, DQ1, DQ2, rng)
     print('Estimated Q1 Values\n{}\nEstimated Q2 Values\n{}'.format(DQ1, DQ2))
     print()
 
+    print('Pessimistic Q Learning')
+    PQ = np.zeros(shape=(env.spec.nS,env.spec.nA))
+    print('Initial Q values\nQ: {}'.format(PQ))
+    PQ, vlPQ = PessimisticQ(env, config.pessimistic_q_learning.steps, config.pessimistic_q_learning.alpha, config.gamma, config.pessimistic_q_learning.epsilon, config.pessimistic_q_learning.pessimism_coeff, PQ, rng)
+    print('Estimated PQ Values\n{}\n'.format(PQ))
+    print()
+
+    plot_overestimation_time(q_star, vlQ, vlDQ, vlPQ, config)
     plot_overestimation(q_star, Q, DQ1, DQ2)
