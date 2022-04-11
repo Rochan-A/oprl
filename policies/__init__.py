@@ -1,1 +1,1 @@
-from .top import TOPAgent
+from .q_values import RandomPolicy, GreedyPolicy, EGPolicy

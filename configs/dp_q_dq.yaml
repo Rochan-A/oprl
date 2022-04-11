@@ -1,14 +1,15 @@
-model: one_state
+model: gridworld # one_state, five_state, gridworld
+env: MiniGrid-LavaGapS7-v0 #MiniGrid-FourRooms-v0  # if using gridworld, specify the gridworld env name
 value_iteration_theta: 0.0001
-gamma: 1
+gamma: 0.9
 
 q_learning:
-  steps: 200
+  steps: 1000
   alpha: 0.005
   epsilon: 0.1
 
 dq_learning:
-  steps: 200
+  steps: 1000
   alpha: 0.005
   epsilon: 0.1
 

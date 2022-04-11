@@ -77,6 +77,6 @@ class EGPolicy(object):
     def action(self,state):
 
         if self.rng.random(1) < self.epsilon:
-            return self.rng.integers(0, self.Q.shape[state])
+            return self.rng.integers(0, self.Q[state].shape)
         else:
             return np.argmax(self.Q[state, :])
