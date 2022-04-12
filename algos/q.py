@@ -1,11 +1,20 @@
 from typing import Tuple
 import numpy as np
+import gym
 
-from policies.q_values import Policy, EGPolicy
-from tqdm import tqdm
+from policies.q_values import EGPolicy
 
 
-def Q_learning(env, n:int, alpha:float, gamma:float, epsilon:float, Q:np.array, rng) -> Tuple[np.array,Policy]:
+def Q_learning(
+    env: gym.Env,
+    n: int,
+    alpha: float,
+    gamma: float,
+    epsilon: float,
+    decay: float,
+    interval: int,
+    Q: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     input:
         env: environment
@@ -13,44 +22,61 @@ def Q_learning(env, n:int, alpha:float, gamma:float, epsilon:float, Q:np.array, 
         alpha: learning rate
         gamma: discount factor
         epslion: epsilon-greedy exploration
+        decay: epsilon decay
+        interval: epsilon update interval
         Q: initial Q function
         rng:
     ret:
         Q: $q_star$ function; numpy array shape of [nS,nA]
+        Qlogs: Q logs
+        envlogs: (r, #s) logs
     """
 
     #####################
     # Q Learning (Hint: Sutton Book p. 131)
     #####################
 
+    # Log Q value, cummulative reward, # of steps
+    Qlogger = np.empty((n, env.nS, env.nA,))
+    Envlogs = np.empty((n,2))
+
     terminal = env.final_state
     Q[terminal, :] = 0
 
-    pi = EGPolicy(Q, epsilon, rng)
-    vl = []
-    for i in tqdm(range(n)):
+    pi = EGPolicy(Q, epsilon)
+
+    for i in range(n):
         s = env.reset()
         done = False
-        sl = []
-        al = []
-        ql = []
+        c_r = 0
         while not done:
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
-
-            sl.append(s)
-            al.append(a)
-            ql.append( np.max(Q[s, :]) )
-            Q[s,a] += alpha*(r + (gamma*np.max(Q[s1, :]) - Q[s, a]))
+            Q[s, a] += alpha * (r + (gamma * np.max(Q[s1, :])) - Q[s, a])
             s = s1
+
             pi.update(Q, epsilon)
-        epsilon *= 0.95
-        vl.append([sl, al, ql])
 
-    return Q, vl
+            c_r += r
+        if i % interval == 0:
+            epsilon *= decay
+        Qlogger[i, ::] = Q
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
+
+    return Q, Qlogger, np.int64(Envlogs)
 
 
-def DoubleQ(env, n:int, alpha:float, gamma:float, epsilon:float, Q1:np.array, Q2:np.array, rng) -> Tuple[np.array,Policy]:
+def DoubleQ(
+    env: gym.Env,
+    n: int,
+    alpha: float,
+    gamma: float,
+    epsilon: float,
+    decay: float,
+    interval: int,
+    Q1: np.ndarray,
+    Q2: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     input:
         env: environment
@@ -58,79 +84,129 @@ def DoubleQ(env, n:int, alpha:float, gamma:float, epsilon:float, Q1:np.array, Q2
         alpha: learning rate
         gamma: discount factor
         epsilon: epsilon-greedy exploration
+        decay: epsilon decay
+        interval: epsilon decay interval
         Q1: initial Q1 function
         Q2: initial Q2 function
-        rng: rng
     ret:
         Q1: Q1 function; numpy array shape of [nS,nA]
         Q1: Q2 function; numpy array shape of [nS,nA]
+        Qlogs1: Q1 logs
+        Qlogs2: Q2 logs
+        envlogs: (r, #s) logs
     """
 
     #####################
     # Double Q Learning (Hint: Sutton Book p. 135-136)
     #####################
+    # Log Q value, cummulative reward, # of steps
+    Qlogger1 = np.empty((n, env.nS, env.nA,))
+    Qlogger2 = np.empty((n, env.nS, env.nA,))
+    Envlogs = np.empty((n,2))
 
     terminal = env.final_state
     Q1[terminal, :] = 0
     Q2[terminal, :] = 0
 
-    pi = EGPolicy(Q1, epsilon, rng)
-    vl = []
+    pi = EGPolicy(Q1, epsilon)
 
-    for i in tqdm(range(n)):
+    for i in range(n):
         s = env.reset()
         done = False
-        sl = []
-        al = []
-        ql1 = []
-        ql2 = []
+        c_r = 0
         while not done:
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
 
-            sl.append(s)
-            al.append(a)
-            ql1.append( np.max(Q1[s, :]) )
-            ql2.append( np.max(Q2[s, :]) )
-
-            if rng.random() < 0.5:
-                Q1[s,a] += alpha*(r + gamma*Q2[s1, np.argmax(Q1[s1, :])] - Q1[s, a])
+            if np.random.random() < 0.5:
+                Q1[s, a] += alpha * (
+                    r + gamma * Q2[s1, np.argmax(Q1[s1, :])] - Q1[s, a]
+                )
             else:
-                Q2[s,a] += alpha*(r + gamma*Q1[s1, np.argmax(Q2[s1, :])] - Q2[s, a])
+                Q2[s, a] += alpha * (
+                    r + gamma * Q1[s1, np.argmax(Q2[s1, :])] - Q2[s, a]
+                )
 
             s = s1
-            pi.update(Q1, epsilon)
-        epsilon *= 0.95
-        vl.append([sl, al, ql1, ql2])
 
-    return Q1, Q2, vl
+            if np.random.random() < 0.5:
+                pi.update(Q1, epsilon)
+            else:
+                pi.update(Q2, epsilon)
+
+            c_r += r
+        if i % interval == 0:
+            epsilon *= decay
+    Qlogger1[i, ::] = Q1
+    Qlogger2[i, ::] = Q2
+    Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
+
+    return Q1, Q2, Qlogger1, Qlogger2, np.int64(Envlogs)
 
 
-def PessimisticQ(env, n:int, alpha:float, gamma:float, epsilon:float, pessimism_coeff:float, PQ:np.array, rng):
+def PessimisticQ(
+    env: gym.Env,
+    n: int,
+    alpha: float,
+    gamma: float,
+    epsilon: float,
+    decay: float,
+    interval: int,
+    pessimism_coeff: float,
+    PQ: np.array,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    input:
+        env: environment
+        n: how many steps?
+        alpha: learning rate
+        gamma: discount factor
+        epslion: epsilon-greedy exploration
+        decay: epsilon decay
+        interval: epsilon update interval
+        Q: initial Q function
+        rng:
+    ret:
+        Q: $q_star$ function; numpy array shape of [nS,nA]
+        Qlogs: Q logs
+        envlogs: (r, #s) logs
+    """
 
-    pi = EGPolicy(PQ, epsilon, rng)
+    #####################
+    # Pessimistic Q learning (ref. https://arxiv.org/pdf/2202.13890.pdf)
+    #####################
+
+    # Log Q value, cummulative reward, # of steps
+    Qlogger = np.empty((n, env.nS, env.nA,))
+    Envlogs = np.empty((n,2))
+
+    pi = EGPolicy(PQ, epsilon)
 
     visit = np.zeros(PQ.shape) + 1
     vl = []
 
-    for i in tqdm(range(n)):
+    for i in range(n):
         s = env.reset()
-        sl = []
-        al = []
-        ql = []
         done = False
+        c_r = 0
         while not done:
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
-            sl.append(s)
-            al.append(a)
-            ql.append( np.max(PQ[s, :]) )
 
             visit[s, a] += 1
-            PQ[s,a] += alpha*(r + gamma*np.max(PQ[s1, :]) - PQ[s, a] - (pessimism_coeff / visit[s, a]) )
+            PQ[s, a] += alpha * (
+                r
+                + gamma * np.max(PQ[s1, :])
+                - PQ[s, a]
+                - (pessimism_coeff / visit[s, a])
+            )
             s = s1
             pi.update(PQ, epsilon)
-        epsilon *= 0.95
-        vl.append([sl, al, ql])
 
-    return PQ, vl
+            c_r += r
+        if i % interval == 0:
+            epsilon *= decay
+
+        Qlogger[i, ::] = PQ
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
+    return PQ, Qlogger, np.int64(Envlogs)

@@ -2,6 +2,6 @@ from .dynamics import (
     OneStateMDP,
     OneStateMDPWithModel,
     FiveStateMDP,
-    FiveStateMDPWithModel
+    FiveStateMDPWithModel,
 )
 from .gridworld import Converted, EnvModel
