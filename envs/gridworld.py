@@ -213,7 +213,12 @@ class Converted(gym.Env):
         self.step_count = 0
         self.f = 0
         self.max_steps = 100
-        _ = self.reset()
+        self.map = None
+
+
+    def load_map(self, path):
+        """Load world from file located at path"""
+        self.map = np.loadtxt(path)
 
 
     def step(self, action):
@@ -286,18 +291,25 @@ class Converted(gym.Env):
 
     def reset(self, **kwargs):
         """Create the converted environment"""
-        self.env.seed = self.seed
-        if self.f == 0:
-            _ = self.env.reset()
-            self.f = 1
+        if self.map is None:
+            # Use gridworld
+            self.env.seed = self.seed
+            if self.f == 0:
+                _ = self.env.reset()
+                self.f = 1
 
-        self.state = copy.deepcopy(self.env.grid.encode()[:, :, 0])
+            self.agent_pos = self.env.agent_pos
+            self.state = copy.deepcopy(self.env.grid.encode()[:, :, 0])
+            self.state[self.agent_pos[0], self.agent_pos[1]] = OBJECT_TO_IDX["agent"]
 
-        self.agent_pos = np.array(self.env.agent_pos)
-        self.state[self.agent_pos[0], self.agent_pos[1]] = OBJECT_TO_IDX["agent"]
+            print(self.state)
+            quit()
 
-        # Fix the orientation so that we can save as an image
-        self.state = np.rot90(np.flipud(self.state), 3)
+            # Fix the orientation so that we can save as an image
+            self.state = np.rot90(np.flipud(self.state), 3)
+        else:
+            # Use file map
+            self.state = np.array(copy.deepcopy(self.map))
 
         # Get all possible locations that can be occupied
         self.S = np.stack(np.where(self.state != OBJECT_TO_IDX["wall"])).T
@@ -313,7 +325,7 @@ class Converted(gym.Env):
         idx = np.where((self.S == self.agent_pos).all(axis=1))[0][0]
 
         self.step_count = 0
-        self.final_state = np.where((self.S == self.goal_pos).all(axis=1))[0][0]
+        self.final_state = np.where((self.S == [self.goal_pos]).all(axis=1))[0][0]
 
         return idx
 

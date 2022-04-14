@@ -20,6 +20,8 @@ from envs import *
 from algos import *
 from policies import GreedyPolicy
 
+plt.rcParams["figure.figsize"] = (20,4)
+plt.rcParams["figure.dpi"] = 200
 
 def make_dirs(path):
     pathlib.Path(path).mkdir(parents=True, exist_ok=True)
@@ -97,7 +99,7 @@ def plot_overestimation_time(q_star, vlQ, vlDQ, vlPQ, config):
     plt.show()
 
 
-def save_value_as_image(env, V, filename):
+def save_value_as_image(env, V, filename, int_=False):
     grid = np.zeros((env.state.shape[0], env.state.shape[1]))
     for idx, val in enumerate(V):
         y, x = env.S[idx]
@@ -105,10 +107,13 @@ def save_value_as_image(env, V, filename):
 
     fig, ax = plt.subplots()
     ax.matshow(grid, cmap=plt.cm.Blues)
-    for i in range(env.state.shape[0]):
-        for j in range(env.state.shape[1]):
-            c = '{:.2f}'.format(grid[j,i])
-            ax.text(i, j, c, va='center', ha='center')
+    for i in range(env.state.shape[1]):
+        for j in range(env.state.shape[0]):
+            if not int_:
+                c = '{:.2f}'.format(grid[j,i])
+            else:
+                c = '{:0.0f}'.format(grid[j,i])
+            ax.text(i, j, c, va='center', ha='center', fontsize=8)
     plt.savefig('{}.png'.format(filename))
 
 
@@ -181,6 +186,7 @@ def env_stats(data, labels):
         ax.set_xlabel('Episode')
         ax.set_ylabel('Reward')
     plt.show()
+    plt.savefig('reward_plot.png')
 
 
 def plot_Q_values(env, q_star, data, labels):
@@ -202,18 +208,22 @@ def plot_Q_values(env, q_star, data, labels):
 
     # fig, ax = plt.subplots(len(optimal_traj), 1)
     clrs = sns.color_palette("husl", len(data) + 1)
+    make_dirs('state-action')
     with sns.axes_style("darkgrid"):
-        for _, (s, a) in enumerate(optimal_traj):
-            plt.figure()
-            plt.plot(np.arange(data[0].shape[1]), [q_star[s, a]]*data[1].shape[1], '--', alpha=0.7, label=labels[0], c=clrs[0])
-            for i in range(len(data)):
-                plt.plot(np.arange(data[i].shape[1]), means[i][:, s, a], label=labels[i+1], c=clrs[i+1])
-                plt.fill_between(np.arange(data[i].shape[1]), means[i][:, s, a]-stds[i][:, s, a], means[i][:, s, a]+stds[i][:, s, a], alpha=0.3, facecolor=clrs[i+1])
-            plt.legend()
-            plt.title('state-{}-action-{}-values'.format(s, a))
-            plt.ylabel("Q Value")
-            plt.xlabel('Episode')
-            plt.show()
+        for s in range(env.nS):
+            for a in range(4):
+                if not (env.TD(s, a) == 0).all():
+                    plt.figure()
+                    plt.plot(np.arange(data[0].shape[1]), [q_star[s, a]]*data[1].shape[1], '--', alpha=0.7, label=labels[0], c=clrs[0])
+                    for i in range(len(data)):
+                        plt.plot(np.arange(data[i].shape[1]), means[i][:, s, a], label=labels[i+1], c=clrs[i+1])
+                        plt.fill_between(np.arange(data[i].shape[1]), means[i][:, s, a]-stds[i][:, s, a], means[i][:, s, a]+stds[i][:, s, a], alpha=0.3, facecolor=clrs[i+1])
+                    plt.legend()
+                    plt.title('state-{}-action-{}-values'.format(s, a))
+                    plt.ylabel("Q Value")
+                    plt.xlabel('Episode')
+                    # plt.show()
+                    plt.savefig('state-action/tstate-{}-action-{}-values.png'.format(s, a))
 
 
 def plot_V_values(env, star_values, data, labels):
@@ -228,7 +238,7 @@ def plot_V_values(env, star_values, data, labels):
             values[i, :] = q_to_v(Q, V_star)
         means.append(values.mean(0))
         stds.append(values.std(0))
-        save_value_as_image(env, values.mean(0), labels[idx])
+        save_value_as_image(env, values.mean(0), labels[idx+1])
 
     # trace states we are interested in
     pi_star = GreedyPolicy(q_star)
@@ -254,7 +264,7 @@ def plot_V_values(env, star_values, data, labels):
         ax.set_title("V Value")
         ax.set_xlabel('State #')
     plt.show()
-
+    plt.savefig('state_values.png')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -275,9 +285,12 @@ if __name__ == "__main__":
     elif config.model == "five_state":
         env = FiveStateMDP(rng)
         env_with_model = FiveStateMDPWithModel(rng)
-    elif config.model == "gridworld":
+    elif config.model == "gridworld" or config.model == 'file':
         env = Converted(config.env, args.seed)
         env = EnvModel(env)
+        if config.model == 'file':
+            env.load_map(config.map_path)
+        _ = env.reset()
         plt.imsave('env.png', env.state)
 
     V, Q = set_initial_values(config, env)
@@ -361,7 +374,7 @@ if __name__ == "__main__":
         ['Q Optimal', 'Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q']
     )
 
-    save_value_as_image(env, np.arange(env.nS), 'state_indices')
+    save_value_as_image(env, np.arange(env.nS), 'state_indices', int_=True)
 
     # plot_overestimation_time(q_star, vlQ, vlDQ, vlPQ, config)
     # plot_overestimation(q_star, Q_q, DQ1, DQ2, PQ)
