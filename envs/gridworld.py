@@ -302,9 +302,6 @@ class Converted(gym.Env):
             self.state = copy.deepcopy(self.env.grid.encode()[:, :, 0])
             self.state[self.agent_pos[0], self.agent_pos[1]] = OBJECT_TO_IDX["agent"]
 
-            print(self.state)
-            quit()
-
             # Fix the orientation so that we can save as an image
             self.state = np.rot90(np.flipud(self.state), 3)
         else:
