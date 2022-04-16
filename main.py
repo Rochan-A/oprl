@@ -167,13 +167,14 @@ def smooth(y, box_pts):
     return y_smooth
 
 
-def env_stats(data, labels):
+def plot_mean_cum_rewards(data, labels):
     """Compute mean and std of env data."""
     means, stds = [], []
     for val in data:
         # reward
-        means.append(smooth(np.clip(val[:, :, 0].mean(0, dtype=np.float64), 0, 1), 10))
-        stds.append(np.clip(val[:, :, 0].std(0, ddof=1, dtype=np.float64), -1, 1))
+        means.append(val[:, :, 0].mean(0, dtype=np.float64))
+        stds.append(val[:, :, 0].std(0, ddof=1, dtype=np.float64))
+        # print(i, val.shape, val[:, :, 0].min() )
 
     fig, ax = plt.subplots()
     clrs = sns.color_palette("husl", len(data))
@@ -193,8 +194,8 @@ def plot_Q_values(env, q_star, data, labels):
     # data: [VQ_Logger, DQ1_Logger, DQ2_Logger, PQ_Logger]
     means, stds = [], []
     for val in data:
-        means.append(np.clip(val.mean(0, dtype=np.float64), -2, 2))
-        stds.append(np.clip(val.std(0, ddof=1, dtype=np.float64), -1, 1))
+        means.append(val.mean(0, dtype=np.float64) )
+        stds.append(val.std(0, ddof=1, dtype=np.float64) )
 
     # trace Q values we are interested in
     pi_star = GreedyPolicy(q_star)
@@ -294,6 +295,7 @@ if __name__ == "__main__":
         plt.imsave('env.png', env.state)
 
     V, Q = set_initial_values(config, env)
+    print(env.nS, env.nA)
 
     # Value Iteration
     print("Value Iteration (DP)")
@@ -355,7 +357,7 @@ if __name__ == "__main__":
         )
 
     # Plot mean cummulative reward
-    env_stats(
+    plot_mean_cum_rewards(
         [VQ_EnvLogger, DQ_EnvLogger, PQ_EnvLogger],
         ['Vanilla Q', 'Double Q', 'Pessimistic Q']
         )
