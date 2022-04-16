@@ -134,27 +134,27 @@ def set_initial_values(config, env):
     """Set the initial values for Q and V."""
 
     if config.init.Q == 'zero':
-        Q = np.zeros((env.spec.nS, env.spec.nA), dtype=np.float64)
+        Q = np.zeros((env.nS, env.nA), dtype=np.float64)
     elif config.init.Q == 'rand':
-        Q = np.random.random((env.spec.nS, env.spec.nA)).astype(dtype=np.float64)
+        Q = np.random.random((env.nS, env.nA)).astype(dtype=np.float64)
     elif config.init.Q == 'opt':
-        Q = np.zeros((env.spec.nS, env.spec.nA), dtype=np.float64)
+        Q = np.zeros((env.nS, env.nA), dtype=np.float64)
         Q.fill(1.0)
     elif config.init.Q == 'pes':
-        Q = np.zeros((env.spec.nS, env.spec.nA), dtype=np.float64)
+        Q = np.zeros((env.nS, env.nA), dtype=np.float64)
         Q.fill(-1.0)
     else:
         assert False, 'unknown Q value initialization'
 
     if config.init.V == 'zero':
-        V = np.zeros((env.spec.nS,), dtype=np.float64)
+        V = np.zeros((env.nS,), dtype=np.float64)
     elif config.init.V == 'rand':
-        V = np.random.random((env.spec.nS,)).astype(dtype=np.float64)
+        V = np.random.random((env.nS,)).astype(dtype=np.float64)
     elif config.init.V == 'opt':
-        V = np.zeros((env.spec.nS,), dtype=np.float64)
+        V = np.zeros((env.nS,), dtype=np.float64)
         V.fill(1.0)
     elif config.init.V == 'pes':
-        V = np.zeros((env.spec.nS,), dtype=np.float64)
+        V = np.zeros((env.nS,), dtype=np.float64)
         V.fill(-1.0)
     else:
         assert False, 'unknown V value initialization'

@@ -2,7 +2,7 @@ model: file # one_state, five_state, gridworld, file
 # if using gridworld, specify the gridworld env name
 # MiniGrid-SimpleCrossingS11N5-v0 MiniGrid-Empty-8x8-v0 MiniGrid-Empty-8x8-v0 MiniGrid-LavaGapS7-v0
 env: MiniGrid-LavaCrossingS11N5-v0 # MiniGrid-LavaGapS7-v0 MiniGrid-FourRooms-v0
-map_path: /workspace/rochan/courses/RL/oprl/maps/maze.txt # /workspace/rochan/courses/RL/oprl/maps/wall.txt
+map_path: ./maps/lava.txt # /workspace/rochan/courses/RL/oprl/maps/wall.txt
 gamma: 0.9
 
 init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
@@ -13,7 +13,7 @@ value_iteration_theta: 0.00001
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-  repeat: 50
+  repeat: 10
 
 q_learning:
   steps: 2000 # episodes

@@ -312,8 +312,6 @@ class Converted(gym.Env):
         self.S = np.stack(np.where(self.state != OBJECT_TO_IDX["wall"])).T
         self.nS = self.S.shape[0]
 
-        self.spec = EnvSpec(self.nS, self.nA, 1)
-
         self.agent_pos = np.concatenate(np.where(self.state == OBJECT_TO_IDX["agent"]))
         self.goal_pos = np.concatenate(np.where(self.state == OBJECT_TO_IDX["goal"]))
         self.lava_pos = np.concatenate(np.where(self.state == OBJECT_TO_IDX["lava"]))
