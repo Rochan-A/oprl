@@ -108,7 +108,14 @@ def DoubleQ(
     Q1[terminal, :] = 0
     Q2[terminal, :] = 0
 
-    pi = EGPolicy(Q1, epsilon)
+    # Keep track of which policy we are using
+    # (see https://proceedings.neurips.cc/paper/2010/file/091d584fced301b442654dd8c23b3fc9-Paper.pdf)
+    if np.random.random() < 0.5:
+        pi = EGPolicy(Q1, epsilon)
+        A = True
+    else:
+        pi = EGPolicy(Q2, epsilon)
+        A = False
 
     for i in range(n):
         s = env.reset()
@@ -118,7 +125,7 @@ def DoubleQ(
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
 
-            if np.random.random() < 0.5:
+            if A:
                 Q1[s, a] += alpha * (
                     r + gamma * Q2[s1, np.argmax(Q1[s1, :])] - Q1[s, a]
                 )
@@ -131,15 +138,17 @@ def DoubleQ(
 
             if np.random.random() < 0.5:
                 pi.update(Q1, epsilon)
+                A = True
             else:
                 pi.update(Q2, epsilon)
+                A = False
 
             c_r += r
         if i % interval == 0:
             epsilon *= decay
-    Qlogger1[i, ::] = Q1
-    Qlogger2[i, ::] = Q2
-    Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
+        Qlogger1[i, ::] = Q1
+        Qlogger2[i, ::] = Q2
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
 
     return Q1, Q2, Qlogger1, Qlogger2, np.int64(Envlogs)
 

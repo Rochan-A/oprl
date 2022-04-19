@@ -1,27 +1,22 @@
 from typing import Tuple
 import numpy as np
+import ast
 
 import argparse
 import yaml
 import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter1d
 import seaborn as sns
 from easydict import EasyDict
 import copy
 from tqdm import tqdm
 import pathlib
 
-import os
-import os.path as osp
-from os import listdir
-from os.path import isfile, join
-
 from envs import *
 from algos import *
 from policies import GreedyPolicy
 
-plt.rcParams["figure.figsize"] = (20,4)
-plt.rcParams["figure.dpi"] = 200
+# plt.rcParams["figure.figsize"] = (20, 6)
+# plt.rcParams["figure.dpi"] = 200
 
 def make_dirs(path):
     pathlib.Path(path).mkdir(parents=True, exist_ok=True)
@@ -105,7 +100,7 @@ def save_value_as_image(env, V, filename, int_=False):
         y, x = env.S[idx]
         grid[y, x] = val
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 10), dpi=200)
     ax.matshow(grid, cmap=plt.cm.Blues)
     for i in range(env.state.shape[1]):
         for j in range(env.state.shape[0]):
@@ -113,7 +108,7 @@ def save_value_as_image(env, V, filename, int_=False):
                 c = '{:.2f}'.format(grid[j,i])
             else:
                 c = '{:0.0f}'.format(grid[j,i])
-            ax.text(i, j, c, va='center', ha='center', fontsize=8)
+            ax.text(i, j, c, va='center', ha='center', fontsize=10)
     plt.savefig('{}.png'.format(filename))
 
 
@@ -176,7 +171,7 @@ def plot_mean_cum_rewards(data, labels):
         stds.append(val[:, :, 0].std(0, ddof=1, dtype=np.float64))
         # print(i, val.shape, val[:, :, 0].min() )
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(20, 6), dpi=200)
     clrs = sns.color_palette("husl", len(data))
     with sns.axes_style("darkgrid"):
         for i in range(len(data)):
@@ -214,7 +209,7 @@ def plot_Q_values(env, q_star, data, labels):
         for s in range(env.nS):
             for a in range(4):
                 if not (env.TD(s, a) == 0).all():
-                    plt.figure()
+                    plt.figure(figsize=(20, 6), dpi=200)
                     plt.plot(np.arange(data[0].shape[1]), [q_star[s, a]]*data[1].shape[1], '--', alpha=0.7, label=labels[0], c=clrs[0])
                     for i in range(len(data)):
                         plt.plot(np.arange(data[i].shape[1]), means[i][:, s, a], label=labels[i+1], c=clrs[i+1])
@@ -232,6 +227,8 @@ def plot_V_values(env, star_values, data, labels):
     # data: [VQ_Logger, DQ1_Logger, DQ2_Logger, PQ_Logger]
 
     V_star, q_star = star_values
+    # Plot true values
+    save_value_as_image(env, V_star, labels[0])
     means, stds = [], []
     for idx, val in enumerate(data):
         values = np.zeros((val.shape[0], V_star.shape[0])) # (# of exps, nS)
@@ -252,7 +249,7 @@ def plot_V_values(env, star_values, data, labels):
         s, _, done, _ = env.step(a)
 
     bar_width = 0.2
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(20, 6), dpi=200)
     with sns.axes_style("darkgrid"):
         # optimal values
         ax.bar(np.arange(V_star.shape[0]) - 1.5*bar_width, V_star, width=bar_width, label=labels[0])
@@ -289,13 +286,14 @@ if __name__ == "__main__":
     elif config.model == "gridworld" or config.model == 'file':
         env = Converted(config.env, args.seed)
         env = EnvModel(env)
+        if ast.literal_eval(config.env_mods.delay) is not None:
+            env = DelayedReward(env, config.env_mods.delay)
         if config.model == 'file':
             env.load_map(config.map_path)
         _ = env.reset()
         plt.imsave('env.png', env.state)
 
     V, Q = set_initial_values(config, env)
-    print(env.nS, env.nA)
 
     # Value Iteration
     print("Value Iteration (DP)")
