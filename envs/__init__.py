@@ -4,4 +4,4 @@ from .dynamics import (
     FiveStateMDP,
     FiveStateMDPWithModel,
 )
-from .gridworld import Converted, EnvModel
+from .gridworld import Converted, EnvModel, DelayedReward
