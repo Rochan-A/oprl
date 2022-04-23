@@ -1,8 +1,13 @@
 from typing import Tuple
 import numpy as np
 import gym
+import random
+
+from collections import deque
 
 from policies.q_values import EGPolicy
+from easydict import EasyDict
+
 
 
 def Q_learning(
@@ -142,6 +147,82 @@ def DoubleQ(
     Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
 
     return Q1, Q2, Qlogger1, Qlogger2, np.int64(Envlogs)
+
+
+def get_min_q(MMQ: np.array):
+    "Returns the minimum Q table"
+    return np.amin(MMQ[:, :, :], axis=0).squeeze()
+
+
+
+def MaxminQ(env: gym.Env, config, Q_init: np.array,):
+    """
+    input:
+        env: environment
+        n: how many steps?
+        alpha: learning rate
+        gamma: discount factor
+        epsilon: epsilon-greedy exploration
+        decay: epsilon decay
+        interval: epsilon decay interval
+        estimators: Number of Q tables
+        Q_init: Q value initializer
+    ret:
+        Q1: Q1 function; numpy array shape of [nS,nA]
+        Q1: Q2 function; numpy array shape of [nS,nA]
+        Qlogs1: Q1 logs
+        Qlogs2: Q2 logs
+        envlogs: (r, #s) logs
+    """
+
+    MMQ_logger = np.empty(( config.mmq_learning.steps , config.mmq_learning.estimators, env.nS, env.nA,))
+    Envlogs = np.empty(( config.mmq_learning.steps , 2))
+
+    MMQ = np.repeat( Q_init[np.newaxis, :, :], config.mmq_learning.estimators,  axis=0)
+    assert MMQ.shape == (config.mmq_learning.estimators, env.nS, env.nA)
+
+    terminal = env.final_state
+    MMQ[:, terminal, :] = 0
+
+    Q_min = get_min_q(MMQ)
+    assert Q_min.shape == (env.nS, env.nA)
+
+    epsilon = config.mmq_learning.epsilon
+    pi = EGPolicy(Q_min, epsilon)
+
+    memory = deque([], maxlen=config.mmq_learning.buffer_size)
+
+    for i in range( config.mmq_learning.steps ):
+        s = env.reset()
+        done = False
+        c_r = 0
+        while not done:
+            a = pi.action(s)
+            s1, r, done, _ = env.step(a)
+            memory.append([s, a, r, s1])
+
+            for j in range(config.mmq_learning.replay_size):
+                update_ind = np.random.choice(config.mmq_learning.estimators)
+                update_trans = random.sample(memory, 1)[0]
+                MMQ[update_ind, update_trans[0], update_trans[1]] +=  config.mmq_learning.alpha * (update_trans[2] + config.gamma * Q_min[update_trans[3], np.argmax(Q_min[update_trans[3], :])] - MMQ[update_ind, update_trans[0], update_trans[1]] )
+
+            s = s1
+
+            Q_min = get_min_q(MMQ)
+            pi.update(Q_min, epsilon)
+
+            c_r += r
+        if i % config.mmq_learning.interval == 0:
+            epsilon *= config.mmq_learning.decay
+
+        MMQ_logger[i, :, :, :] = MMQ
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
+
+    print(MMQ_logger.shape)
+
+    return MMQ, MMQ_logger, np.int64(Envlogs)
+
+
 
 
 def PessimisticQ(

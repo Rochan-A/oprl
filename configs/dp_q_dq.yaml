@@ -6,33 +6,43 @@ map_path: ./maps/lava.txt # /workspace/rochan/courses/RL/oprl/maps/wall.txt
 gamma: 0.9
 
 init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
-  Q: zero
-  V: zero
+  Q: opt
+  V: opt
 
 value_iteration_theta: 0.00001
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-  repeat: 50
+  repeat: 25
 
 q_learning:
-  steps: 2000 # episodes
+  steps: 10000 # episodes
   alpha: 0.05
   epsilon: 0.9
   decay: 0.99
   interval: 20
 
 dq_learning:
-  steps: 2000
+  steps: 10000
   alpha: 0.05
   epsilon: 0.9
   decay: 0.99
   interval: 20
 
 pessimistic_q_learning:
-  steps: 2000
+  steps: 10000
   alpha: 0.05
   epsilon: 0.9
   decay: 0.99
   interval: 20
   pessimism_coeff: 0.1
+
+mmq_learning:
+  steps: 10000
+  alpha: 0.05
+  epsilon: 0.9
+  decay: 0.99
+  interval: 20
+  estimators: 4
+  buffer_size: 100
+  replay_size: 10

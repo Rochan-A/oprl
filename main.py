@@ -356,10 +356,22 @@ if __name__ == "__main__":
             copy.deepcopy(Q),
         )
 
+    print("Maxmin Q learning")
+    MMQ_Logger = np.empty(( config.exp.repeat, config.q_learning.steps, config.mmq_learning.estimators, env.nS, env.nA ))
+    MMQ_EnvLogger = np.empty(( config.exp.repeat, config.q_learning.steps, 2 ))
+    print(MMQ_Logger.shape)
+    for rep in tqdm(range(config.exp.repeat)):
+        print(rep)
+        _, MMQ_Logger[rep, :, :, :, :], MMQ_EnvLogger[rep, ::] = MaxminQ(
+            env,
+            config,
+            copy.deepcopy(Q),
+        )
+
     # Plot mean cummulative reward
     plot_mean_cum_rewards(
-        [VQ_EnvLogger, DQ_EnvLogger, PQ_EnvLogger],
-        ['Vanilla Q', 'Double Q', 'Pessimistic Q']
+        [VQ_EnvLogger, DQ_EnvLogger, PQ_EnvLogger, MMQ_EnvLogger],
+        ['Vanilla Q', 'Double Q', 'Pessimistic Q', 'Minimax Q']
         )
 
     # plot Q and V
