@@ -3,10 +3,9 @@ model: file # one_state, five_state, gridworld, file
 # eg. MiniGrid-SimpleCrossingS11N5-v0 MiniGrid-Empty-8x8-v0
 # MiniGrid-LavaCrossingS11N5-v0 MiniGrid-LavaGapS7-v0 MiniGrid-FourRooms-v0
 env: MiniGrid-Empty-8x8-v0
-map_path: ./maps/rooms.txt
+map_path: ./maps/edge_wo_lava.txt
 gamma: 0.9
 
-# Environment Modifiers
 env_mods:
   # (num of timesteps after reward is actually returned, except for terminal state)
   delay: None # inf, int, None
