@@ -15,6 +15,7 @@ from tqdm import tqdm
 from utils import *
 from env import *
 from algos import *
+import seaborn as sns
 
 def runExperiment(nEpisodes, env, agent):
     countLeftFromA = np.zeros(nEpisodes)
@@ -67,7 +68,7 @@ if __name__=="__main__":
     epsilon_DoubleQLearning = 0.1
 
     # Environment
-    env = MaximizationBias(mu=-0.1)
+    env = MaximizationBias(mu=-0.1)#MaximizationBias(mu=-0.1)
     q_counts = [2, 3, 4]
 
     #env.printEnv()
@@ -76,37 +77,45 @@ if __name__=="__main__":
     allCountLeftFromA_DoubleQLearning = np.zeros(nEpisodes)
     allCountLeftFromA_PessimisticQLearning = np.zeros(nEpisodes)
     allCountLeftFromA_MaxminQLearning = [np.zeros(nEpisodes) for _ in q_counts]
+    allCountLeftFromA_MeanVarQLearning = np.zeros(nEpisodes)
     for idx_experiment in tqdm(range(nExperiments)):
 
         agent_QLearning = QLearning(env.nStates, env.nActions, alpha_QLearning, gamma_QLearning, epsilon=epsilon_QLearning)
         agent_DoubleQLearning = DoubleQLearning(env.nStates, env.nActions, alpha_DoubleQLearning, gamma_DoubleQLearning, epsilon=epsilon_DoubleQLearning)
         agent_PessimisticQLearning = PessimisticQLearning(env.nStates, env.nActions, alpha_QLearning, gamma_QLearning, epsilon=epsilon_QLearning)
+        agent_MeanVarQLearning = MeanVarQLearning(env.nStates, env.nActions, alpha_QLearning, gamma_QLearning, epsilon=epsilon_QLearning)
 
         countLeftFromA_QLearning = runExperiment(nEpisodes, env, agent_QLearning)
         countLeftFromA_DoubleQLearning = runExperiment(nEpisodes, env, agent_DoubleQLearning)
         countLeftFromA_PessimisticQLearning = runExperiment(nEpisodes, env, agent_PessimisticQLearning)
+        countLeftFromA_MeanVarQLearning = runExperiment(nEpisodes, env, agent_MeanVarQLearning)
 
         allCountLeftFromA_QLearning += countLeftFromA_QLearning
         allCountLeftFromA_DoubleQLearning += countLeftFromA_DoubleQLearning
         allCountLeftFromA_PessimisticQLearning += countLeftFromA_PessimisticQLearning
+        allCountLeftFromA_MeanVarQLearning += countLeftFromA_MeanVarQLearning
 
         for idx, q_count in enumerate(q_counts):
             agent_MaxminQLearning = MaxminQLearning(env.nStates, env.nActions, alpha_QLearning, gamma_QLearning, n=q_count, epsilon=epsilon_QLearning)
             countLeftFromA_MaxminQLearning = runExperiment(nEpisodes, env, agent_MaxminQLearning)
             allCountLeftFromA_MaxminQLearning[idx] += countLeftFromA_MaxminQLearning
-            # agent_MaxminQLearning.reset()
 
     fig = pl.figure(figsize=(10, 10), dpi=200)
-    pl.plot(allCountLeftFromA_QLearning/nExperiments*100, '-r', label="Q-Learning")
-    pl.plot(allCountLeftFromA_DoubleQLearning/nExperiments*100, '-g', label="Double Q-Learning")
-    pl.plot(allCountLeftFromA_PessimisticQLearning/nExperiments*100, '-b', label="Pessimistic Q-Learning")
 
-    for idx, val in enumerate(q_counts):
-        pl.plot(allCountLeftFromA_MaxminQLearning[idx]/nExperiments*100, label="Maxmin Q-Learning (N={})".format(val))
+    clrs = sns.color_palette("husl", 5 + len(q_counts))
+    with sns.axes_style("darkgrid"):
+        pl.plot(allCountLeftFromA_QLearning/nExperiments*100, label="Q-Learning", c=clrs[0])
+        pl.plot(allCountLeftFromA_DoubleQLearning/nExperiments*100, label="Double Q-Learning", c=clrs[1])
+        pl.plot(allCountLeftFromA_PessimisticQLearning/nExperiments*100, label="Pessimistic Q-Learning", c=clrs[2])
+        pl.plot(allCountLeftFromA_MeanVarQLearning/nExperiments*100, label="MeanVar Q-Learning", c=clrs[3])
 
-    pl.plot(np.ones(nEpisodes)*5.0, '--k')
+        for idx, val in enumerate(q_counts):
+            pl.plot(allCountLeftFromA_MaxminQLearning[idx]/nExperiments*100, label="Maxmin Q-Learning (N={})".format(val), c=clrs[4+idx])
+
+        pl.plot(np.ones(nEpisodes)*5.0, c=clrs[-1])
+
     pl.xlabel("Episodes")
     pl.ylabel("% left actions from A")
     pl.legend()
-    # pl.show()
+    pl.tight_layout()
     pl.savefig('plot_visits.png')
