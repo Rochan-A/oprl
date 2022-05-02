@@ -186,12 +186,16 @@ def DoubleQ(
     return Q1, Q2, Qlogger1, Qlogger2, np.int64(Envlogs), VisitLogger
 
 
-def get_min_q(MMQ: np.array):
+def get_min_q(Q: np.array, config, active_estimators=-1):
     "Returns the minimum Q table"
-    return np.amin(MMQ[:, :, :], axis=0).squeeze()
+    if active_estimators == -1:
+        return np.amin(Q[:, :, :], axis=0).squeeze()
+    else:
+        ind = np.random.choice(config.mmbq_learning.max_estimators, active_estimators)
+        return np.amin( Q[ind, :, :], axis=0 ).squeeze()
 
 
-def MaxminQ(env: gym.Env, config, Q_init: np.array,):
+def MaxminQ(env: gym.Env, config, estimators, Q_init: np.array,):
     """
     input:
         env: environment
@@ -211,16 +215,16 @@ def MaxminQ(env: gym.Env, config, Q_init: np.array,):
         envlogs: (r, #s) logs
     """
 
-    MMQ_logger = np.zeros(( config.mmq_learning.steps , config.mmq_learning.estimators, env.nS, env.nA,))
+    MMQ_logger = np.zeros(( config.mmq_learning.steps , estimators, env.nS, env.nA,))
     Envlogs = np.zeros(( config.mmq_learning.steps , 2))
 
-    MMQ = np.repeat( Q_init[np.newaxis, :, :], config.mmq_learning.estimators,  axis=0)
-    assert MMQ.shape == (config.mmq_learning.estimators, env.nS, env.nA)
+    MMQ = np.repeat( Q_init[np.newaxis, :, :], estimators,  axis=0)
+    assert MMQ.shape == (estimators, env.nS, env.nA)
 
     terminal = env.final_state
     MMQ[:, terminal, :] = 0
 
-    Q_min = get_min_q(MMQ)
+    Q_min = get_min_q(MMQ, config)
     assert Q_min.shape == (env.nS, env.nA)
 
     VisitLogger = np.zeros((int(config.mmq_learning.steps/VISIT_LOG_INTERVAL), env.state.shape[0], env.state.shape[1], 1))
@@ -244,13 +248,14 @@ def MaxminQ(env: gym.Env, config, Q_init: np.array,):
             memory.append([s, a, r, s1])
 
             for j in range(config.mmq_learning.replay_size):
-                update_ind = np.random.choice(config.mmq_learning.estimators)
+                update_ind = np.random.choice(estimators)
                 update_trans = random.sample(memory, 1)[0]
-                MMQ[update_ind, update_trans[0], update_trans[1]] += config.mmq_learning.alpha * (update_trans[2] + config.gamma * Q_min[update_trans[3], np.argmax(Q_min[update_trans[3], :])] - MMQ[update_ind, update_trans[0], update_trans[1]] )
+                a_p = np.argmax(Q_min[update_trans[3], :])
+                MMQ[update_ind, update_trans[0], update_trans[1]] +=  config.mmq_learning.alpha * (update_trans[2] + config.gamma * Q_min[update_trans[3], a_p] - MMQ[update_ind, update_trans[0], update_trans[1]] )
 
             s = s1
 
-            Q_min = get_min_q(MMQ)
+            Q_min = get_min_q(MMQ, config)
             pi.update(Q_min, epsilon)
 
             c_r += r
@@ -268,6 +273,71 @@ def MaxminQ(env: gym.Env, config, Q_init: np.array,):
         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
 
     return MMQ, MMQ_logger, np.int64(Envlogs), VisitLogger
+
+
+def get_active_estimators(q_est, num_a_est, t):
+    return np.argmax( q_est + 2 * np.sqrt( np.log(t) / (num_a_est + 1e-8) ) ) + 1
+
+
+def MaxminBanditQ(env: gym.Env, config, Q_init: np.array):
+    MMBQ_logger = np.empty(( config.mmbq_learning.steps , config.mmbq_learning.max_estimators, env.nS, env.nA,))
+    Envlogs = np.empty(( config.mmbq_learning.steps , 2))
+
+    MMBQ = np.repeat( Q_init[np.newaxis, :, :], config.mmbq_learning.max_estimators,  axis=0)
+    assert MMBQ.shape == (config.mmbq_learning.max_estimators, env.nS, env.nA)
+
+    q_est = np.zeros(config.mmbq_learning.max_estimators)
+    num_a_est = np.zeros(config.mmbq_learning.max_estimators)
+
+    terminal = env.final_state
+    MMBQ[:, terminal, :] = 0
+
+    active_estimators = get_active_estimators(q_est, num_a_est, 1)
+    Q_min = get_min_q(MMBQ, config, active_estimators)
+    assert Q_min.shape == (env.nS, env.nA)
+
+    epsilon = config.mmbq_learning.epsilon
+    pi = EGPolicy(Q_min, epsilon)
+
+    memory = deque([], maxlen = config.mmbq_learning.buffer_size)
+    c_r_memory = deque([], maxlen = config.mmbq_learning.cum_len + 1)
+
+    for i in range( config.mmbq_learning.steps ):
+        s = env.reset()
+        done = False
+        c_r = 0
+        while not done:
+            a = pi.action(s)
+            s1, r, done, _ = env.step(a)
+            memory.append([s, a, r, s1])
+
+            for j in range(config.mmbq_learning.replay_size):
+                update_ind = np.random.choice( config.mmbq_learning.max_estimators )
+                update_trans = random.sample(memory, 1)[0]
+                a_p = np.argmax(Q_min[update_trans[3], :])
+                MMBQ[update_ind, update_trans[0], update_trans[1]] +=  config.mmbq_learning.alpha * (update_trans[2] + config.gamma * Q_min[update_trans[3], a_p] - MMBQ[update_ind, update_trans[0], update_trans[1]] )
+
+            s = s1
+
+            Q_min = get_min_q(MMBQ, config, active_estimators)
+            pi.update(Q_min, epsilon)
+
+            c_r += r
+        if i % config.mmbq_learning.interval == 0:
+            epsilon *= config.mmbq_learning.decay
+
+        c_r_memory.append([c_r, active_estimators])
+        if len(c_r_memory) > config.mmbq_learning.cum_len:
+            new_reward = (np.sum( list(c_r_memory), axis=0 )[0] - c_r_memory[0][0]) * 1.0 / config.mmbq_learning.cum_len
+            num_active_estimators = c_r_memory[0][1]
+            q_est[num_active_estimators] = q_est[num_active_estimators] + config.mmbq_learning.bandit_lr * (new_reward - q_est[num_active_estimators])
+            num_a_est[ num_active_estimators ] += 1
+
+        MMBQ_logger[i, :, :, :] = MMBQ
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
+        active_estimators = get_active_estimators(q_est, num_a_est, i+2)
+
+    return MMBQ, MMBQ_logger, np.int64(Envlogs)
 
 
 def PessimisticQ(

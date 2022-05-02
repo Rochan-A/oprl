@@ -1,6 +1,3 @@
-from sre_parse import State
-from typing import Tuple
-from gym_minigrid.wrappers import StateBonus
 import numpy as np
 import ast
 from os.path import join
@@ -8,7 +5,6 @@ from os.path import join
 import argparse
 import yaml
 import matplotlib.pyplot as plt
-import seaborn as sns
 from easydict import EasyDict
 import copy
 from tqdm import tqdm
@@ -81,9 +77,13 @@ if __name__ == "__main__":
             env = Maps(config.env, args.seed)
             env = MapsEnvModel(env)
 
-        # env = DistanceBonus(env)
-        env = StateBonus(env)
-        env = ActionBonus(env)
+        if config.env_mods.state_bonus:
+            env = StateBonus(env)
+        if config.env_mods.action_bonus:
+            env = ActionBonus(env)
+        if config.env_mods.distance_bonus:
+            env = DistanceBonus(env)
+
         if ast.literal_eval(config.env_mods.delay) is not None:
             env = DelayedReward(env, config.env_mods.delay)
         if 'file' in config.model:
@@ -94,9 +94,10 @@ if __name__ == "__main__":
         save_matrix_as_image(env, np.arange(env.nS), join(args.exp_name, 'state_indices.png'), int_=True)
 
 
-    env_loggers = []
-    loggers = []
-    visits = []
+    # Save experiment logs
+    env_loggers = {}
+    loggers = {}
+    visits = {}
 
     V, Q = set_initial_values(config, env)
 
@@ -127,9 +128,9 @@ if __name__ == "__main__":
             config.q_learning.interval,
             copy.deepcopy(Q),
         )
-    env_loggers.append(VQ_EnvLogger)
-    loggers.append(VQ_Logger)
-    visits.append(VQ_Visits)
+    env_loggers['Vanilla Q'] = VQ_EnvLogger
+    loggers['Vanilla Q'] = VQ_Logger
+    visits['Vanilla Q'] = VQ_Visits
 
 
     # Double Q-learning
@@ -149,10 +150,10 @@ if __name__ == "__main__":
             copy.deepcopy(Q),
             copy.deepcopy(Q),
         )
-    env_loggers.append(DQ_EnvLogger)
-    loggers.append(DQ1_Logger)
-    loggers.append(DQ2_Logger)
-    visits.append(DQ_Visits)
+    env_loggers['Double Q'] = DQ_EnvLogger
+    loggers['Double Q1'] = DQ1_Logger
+    loggers['Double Q2'] = DQ2_Logger
+    visits['Double Q'] = DQ_Visits
 
 
     print("Pessimistic Q Learning")
@@ -170,28 +171,32 @@ if __name__ == "__main__":
             config.pessimistic_q_learning.pessimism_coeff,
             copy.deepcopy(Q),
         )
-    env_loggers.append(PQ_EnvLogger)
-    loggers.append(PQ_Logger)
-    visits.append(PQ_Visits)
+    env_loggers['Pessimistic Q'] = PQ_EnvLogger
+    loggers['Pessimistic Q'] = PQ_Logger
+    visits['Pessimistic Q'] = PQ_Visits
 
 
-    print("Maxmin Q learning")
-    MMQ_Logger = np.empty(( config.exp.repeat, config.q_learning.steps, config.mmq_learning.estimators, env.nS, env.nA))
-    MMQ_EnvLogger = np.empty(( config.exp.repeat, config.q_learning.steps, 2))
-    for rep in tqdm(range(config.exp.repeat)):
-        _, MMQ_Logger[rep, :, :, :, :], MMQ_EnvLogger[rep, ::], MMQ_Visits = MaxminQ(
-            env,
-            config,
-            copy.deepcopy(Q)
-        )
-    env_loggers.append(MMQ_EnvLogger)
-    loggers.append(MMQ_Logger[:, 0, ::])
-    visits.append(MMQ_Visits)
+    # Perform Maxmin for 'n' different estimator counts
+    for estimators in config.mmq_learning.estimator_pools:
+        print("Maxmin Q learning, n = {}".format(estimators))
+        MMQ_Logger = np.empty(( config.exp.repeat, config.mmq_learning.steps, estimators, env.nS, env.nA))
+        MMQ_EnvLogger = np.empty(( config.exp.repeat, config.mmq_learning.steps, 2))
+        for rep in tqdm(range(config.exp.repeat)):
+            _, MMQ_Logger[rep, :, :, :, :], MMQ_EnvLogger[rep, ::], MMQ_Visits = MaxminQ(
+                env,
+                config,
+                estimators,
+                copy.deepcopy(Q)
+            )
+        env_loggers['Maxmin Q n_{}'.format(estimators)] = MMQ_EnvLogger
+        print(MMQ_Logger[:, :, 0, ::].shape)
+        loggers['Maxmin Q n_{}'.format(estimators)] = MMQ_Logger[:, :, 0, ::]
+        visits['Maxmin Q n_{}'.format(estimators)] = MMQ_Visits
 
 
-    print("Mean-Var Discounted Q Learning")
-    MVQ_Logger = np.empty((config.exp.repeat, config.q_learning.steps, env.nS, env.nA))
-    MVQ_EnvLogger = np.empty((config.exp.repeat, config.q_learning.steps, 2))
+    print("Mean-Var Q Learning")
+    MVQ_Logger = np.empty((config.exp.repeat, config.meanvar_q_learning.steps, env.nS, env.nA))
+    MVQ_EnvLogger = np.empty((config.exp.repeat, config.meanvar_q_learning.steps, 2))
     for rep in tqdm(range(config.exp.repeat)):
         _, MVQ_Logger[rep, ::], MVQ_EnvLogger[rep, ::], MVQ_Visits = MeanVarianceQ(
             env,
@@ -204,9 +209,22 @@ if __name__ == "__main__":
             config.meanvar_q_learning.coeff,
             copy.deepcopy(Q),
         )
-    env_loggers.append(MVQ_EnvLogger)
-    loggers.append(MVQ_Logger)
-    visits.append(MVQ_Visits)
+    env_loggers['Mean-Var Q'] = MVQ_EnvLogger
+    loggers['Mean-Var Q'] = MVQ_Logger
+    visits['Mean-Var Q'] = MVQ_Visits
+
+    print("Maxmin Bandit Q learning")
+    MMBQ_Logger = np.empty((config.exp.repeat, config.mmbq_learning.steps, config.mmbq_learning.max_estimators, env.nS, env.nA))
+    MMBQ_EnvLogger = np.empty((config.exp.repeat, config.mmbq_learning.steps, 2))
+    for rep in tqdm(range(config.exp.repeat)):
+        _, MMBQ_Logger[rep, :, :, :, :], MMBQ_EnvLogger[rep, ::] = MaxminBanditQ(
+            env,
+            config,
+            copy.deepcopy(Q),
+        )
+    env_loggers['Maxmin Bandit Q'] = MMBQ_EnvLogger
+    print(MMBQ_Logger[:, :, 0, ::].shape)
+    loggers['Maxmin Bandit Q'] = MMBQ_Logger[:, :, 0, ::]
 
 
     # Save experiment values
@@ -214,22 +232,18 @@ if __name__ == "__main__":
         env_loggers,
         loggers,
         visits,
-        ['Vanilla Q', 'Double Q', 'Pessimistic Q', 'Maxmin Q', 'Mean-Var Q'],
-        ['Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Maxmin Q (1)', 'Mean-Var Q'],
         args.exp_name
     )
 
     # Plot visitation heat map
     plot_heatmap(
         visits,
-        ['Vanilla Q', 'Double Q', 'Pessimistic Q', 'Maxmin Q', 'Mean-Var Q'],
         args.exp_name
         )
 
     # Plot mean cummulative reward
     plot_mean_cum_rewards(
         env_loggers,
-        ['Vanilla Q', 'Double Q', 'Pessimistic Q', 'Maxmin Q', 'Mean-Var Q'],
         args.exp_name,
         do_smooth=True
         )
@@ -239,7 +253,6 @@ if __name__ == "__main__":
         env,
         q_star,
         loggers,
-        ['Q Optimal', 'Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Maxmin Q (1)', 'Mean-Var Q'],
         args.exp_name
     )
 
@@ -247,6 +260,5 @@ if __name__ == "__main__":
         env,
         [V_star, q_star],
         loggers,
-        ['Q Optimal', 'Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Maxmin Q (1)', 'Mean-Var Q'],
         args.exp_name
     )

@@ -1,3 +1,4 @@
+from cProfile import label
 import numpy as np
 from os.path import join
 import matplotlib.pyplot as plt
@@ -88,8 +89,12 @@ def plot_overestimation_time(q_star, vlQ, vlDQ, vlPQ, config):
     )
 
     plt.figure()
-    plt.plot(np.arange(config.q_learning.steps), over_ql, label="Q learning")
-    plt.plot(np.arange(config.dq_learning.steps), over_dql, label="DQ learning")
+    plt.plot(
+        np.arange(config.q_learning.steps), over_ql, label="Q learning"
+    )
+    plt.plot(
+        np.arange(config.dq_learning.steps), over_dql, label="DQ learning"
+    )
     plt.plot(
         np.arange(config.pessimistic_q_learning.steps), over_pq, label="PQ learning"
     )
@@ -137,7 +142,7 @@ def smooth(y, box_pts):
     return y_smooth
 
 
-def smooth(scalars, weight):  # Weight between 0 and 1
+def smooth_exp(scalars, weight):  # Weight between 0 and 1
     last = scalars[0]  # First value in the plot (first timestep)
     smoothed = list()
     for point in scalars:
@@ -148,24 +153,30 @@ def smooth(scalars, weight):  # Weight between 0 and 1
     return smoothed
 
 
-def plot_mean_cum_rewards(data, labels, env_name, do_smooth=False):
+def plot_mean_cum_rewards(data, exp_name, do_smooth=False):
     """Compute mean and std of env data."""
+    labels = list(data.keys())
     means, stds = [], []
-    for val in data:
+    for val in data.values():
         # reward
         means.append(val[:, :, 0].mean(0, dtype=np.float64))
         stds.append(val[:, :, 0].std(0, ddof=1, dtype=np.float64))
 
     if do_smooth:
-        means = smooth(means, 0.9)
+        means = smooth_exp(means, 0.9)
 
     fig, ax = plt.subplots(dpi=200)
     clrs = sns.color_palette("husl", len(data))
     with sns.axes_style("darkgrid"):
-        for i in range(len(data)):
-            ax.plot(np.arange(data[i].shape[-2]), means[i], label=labels[i], c=clrs[i])
+        for i, key in enumerate(data):
+            ax.plot(np.arange(
+                data[key].shape[-2]),
+                means[i],
+                label=labels[i],
+                c=clrs[i]
+            )
             ax.fill_between(
-                np.arange(data[i].shape[-2]),
+                np.arange(data[key].shape[-2]),
                 means[i]-stds[i],
                 means[i]+stds[i],
                 alpha=0.3,
@@ -176,13 +187,14 @@ def plot_mean_cum_rewards(data, labels, env_name, do_smooth=False):
         ax.set_xlabel('Episode')
         ax.set_ylabel('Reward')
     plt.tight_layout()
-    plt.savefig(join(env_name, 'reward_plot.png'), bbox_inches='tight')
+    plt.savefig(join(exp_name, 'reward_plot.png'), bbox_inches='tight')
 
 
-def plot_Q_values(env, q_star, data, labels, env_name):
+def plot_Q_values(env, q_star, data, exp_name):
     # data: [VQ_Logger, DQ1_Logger, DQ2_Logger, PQ_Logger]
+    labels = list(data.keys())
     means, stds = [], []
-    for val in data:
+    for val in data.values():
         means.append(val.mean(0, dtype=np.float64))
         stds.append(val.std(0, ddof=1, dtype=np.float64))
 
@@ -196,31 +208,30 @@ def plot_Q_values(env, q_star, data, labels, env_name):
         optimal_traj.append([s, a])
         s, _, done, _ = env.step(a)
 
-    # fig, ax = plt.subplots(len(optimal_traj), 1)
     clrs = sns.color_palette("husl", len(data) + 1)
-    make_dirs(join(env_name, 'state-action'))
+    make_dirs(join(exp_name, 'state-action'))
     with sns.axes_style("darkgrid"):
         for s in range(env.nS):
             for a in range(4):
                 if not (env.TD(s, a) == 0).all():
                     plt.figure(dpi=200)
                     plt.plot(
-                        np.arange(data[0].shape[1]),
-                        [q_star[s, a]]*data[1].shape[1],
+                        np.arange(data[labels[0]].shape[1]),
+                        [q_star[s, a]]*data[labels[0]].shape[1],
                         '--',
                         alpha=0.7,
-                        label=labels[0],
+                        label='Q Optimal',
                         c=clrs[0]
                     )
-                    for i in range(len(data)):
+                    for i, key in enumerate(data):
                         plt.plot(
-                            np.arange(data[i].shape[1]),
+                            np.arange(data[key].shape[1]),
                             means[i][:, s, a],
-                            label=labels[i+1],
+                            label=key,
                             c=clrs[i+1]
                         )
                         plt.fill_between(
-                            np.arange(data[i].shape[1]),
+                            np.arange(data[key].shape[1]),
                             means[i][:, s, a]-stds[i][:, s, a],
                             means[i][:, s, a]+stds[i][:, s, a],
                             alpha=0.3,
@@ -231,24 +242,31 @@ def plot_Q_values(env, q_star, data, labels, env_name):
                     plt.ylabel("Q Value")
                     plt.xlabel('Episode')
                     plt.tight_layout()
-                    plt.savefig(join(env_name, 'state-action', 's-{}-a-{}.png'.format(s, a)), bbox_inches='tight')
+                    plt.savefig(
+                        join(
+                            exp_name,
+                            'state-action',
+                            's-{}-a-{}.png'.format(s, a)
+                        ),
+                        bbox_inches='tight'
+                    )
 
 
-def plot_V_values(env, star_values, data, labels, env_name):
+def plot_V_values(env, star_values, data, exp_name):
     # star_values: [V_star, q_star]
     # data: [VQ_Logger, DQ1_Logger, DQ2_Logger, PQ_Logger]
-
+    labels = list(data.keys())
     V_star, q_star = star_values
     # Plot true values
-    save_matrix_as_image(env, V_star, join(env_name, '{}.png'.format(labels[0])))
+    save_matrix_as_image(env, V_star, join(exp_name, '{}.png'.format(labels[0])))
     means, stds = [], []
-    for idx, val in enumerate(data):
+    for idx, val in enumerate(data.values()):
         values = np.zeros((val.shape[0], V_star.shape[0])) # (# of exps, nS)
         for i, Q in enumerate(val[:, -1, :]): # consider final Q values only
             values[i, :] = q_to_v(Q, V_star)
         means.append(values.mean(0))
         stds.append(values.std(0))
-        save_matrix_as_image(env, values.mean(0), join(env_name, labels[idx+1]+'.png'))
+        save_matrix_as_image(env, values.mean(0), join(exp_name, labels[idx]+'.png'))
 
         # Diff between true value and calculated
         a = (values.mean(0) - V_star)/V_star
@@ -266,7 +284,7 @@ def plot_V_values(env, star_values, data, labels, env_name):
                 c = '{:0.2f}'.format(grid[j,i])
                 ax.text(i, j, c, va='center', ha='center', fontsize=6, backgroundcolor='white')
         plt.tight_layout()
-        plt.savefig(join(env_name, '{}_diff.png'.format(labels[idx+1])), bbox_inches='tight')
+        plt.savefig(join(exp_name, '{}_diff.png'.format(labels[idx])), bbox_inches='tight')
 
     # trace states we are interested in
     pi_star = GreedyPolicy(q_star)
@@ -312,25 +330,28 @@ def plot_V_values(env, star_values, data, labels, env_name):
         ax.set_title("V Value")
         ax.set_xlabel('State #')
     plt.tight_layout()
-    plt.savefig(join(env_name, 'state_values.png'), bbox_inches='tight')
+    plt.savefig(join(exp_name, 'state_values.png'), bbox_inches='tight')
 
 
-def save_experiments(env_loggers=[], loggers=[], visits=[], env_labels=[], labels=[], env_name='.'):
+def save_experiments(env_loggers, loggers, visits, exp_name):
     """Save experiment data"""
-    for idx, env_logger in enumerate(env_loggers):
-        compress_pickle(join(env_name, env_labels[idx] + '.pbz2'), env_logger)
+    for key in env_loggers:
+        compress_pickle(join(exp_name, key + '_env.pbz2'), env_loggers[key])
 
-    for idx, logger in enumerate(loggers):
-        compress_pickle(join(env_name, labels[idx] + '.pbz2'), logger)
+    for key in loggers:
+        compress_pickle(join(exp_name, key + '_qvals.pbz2'), loggers[key])
 
-    for idx, visit in enumerate(visits):
-        compress_pickle(join(env_name, env_labels[idx] + '.pbz2'), visit)
+    for key in visits:
+        compress_pickle(join(exp_name, key + '_visits.pbz2'), visits[key])
 
 
-def plot_heatmap(visits, labels, env_name):
-    for idx, visit in enumerate(visits):
-        clip = ImageSequenceClip(list(visit), fps=10)
-        clip.write_gif(join(env_name, '{}.gif'.format(labels[idx])), fps=10)
+def plot_heatmap(visits, exp_name):
+    labels = list(visits.keys())
+    for idx, visit in enumerate(visits.values()):
+        counts = visit.shape[0]
+        fps = int(counts/600)
+        clip = ImageSequenceClip(list(visit), fps=fps)
+        clip.write_gif(join(exp_name, '{}.gif'.format(labels[idx])), fps=fps)
 
         fig, ax = plt.subplots(dpi=200)
 
@@ -341,4 +362,4 @@ def plot_heatmap(visits, labels, env_name):
                 ax.text(i, j, c, va='center', ha='center', fontsize=6, backgroundcolor='white')
 
         plt.tight_layout()
-        plt.savefig(join(env_name, '{}_visit_freq.png'.format(labels[idx])), bbox_inches='tight')
+        plt.savefig(join(exp_name, '{}_visit_freq.png'.format(labels[idx])), bbox_inches='tight')
