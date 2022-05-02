@@ -3,7 +3,7 @@ model: file # one_state, five_state, gridworld, file
 # eg. MiniGrid-SimpleCrossingS11N5-v0 MiniGrid-Empty-8x8-v0
 # MiniGrid-LavaCrossingS11N5-v0 MiniGrid-LavaGapS7-v0 MiniGrid-FourRooms-v0
 env: MiniGrid-Empty-8x8-v0
-map_path: ./maps/rooms.txt
+map_path: ./maps/lava.txt
 gamma: 0.9
 
 # Environment Modifiers
@@ -26,26 +26,26 @@ init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-  repeat: 25
+  repeat: 50
 
 value_iteration_theta: 0.00001
 
 q_learning:
-  steps: 4000 # episodes
+  steps: 10000 # episodes
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99 # epsilon decay rate
   interval: 40 # epsilon decay interval
 
 dq_learning:
-  steps: 4000
+  steps: 10000
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99
   interval: 40
 
 pessimistic_q_learning:
-  steps: 4000
+  steps: 10000
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99
@@ -53,11 +53,23 @@ pessimistic_q_learning:
   pessimism_coeff: 0.1
 
 mmq_learning:
-  steps: 4000
+  steps: 10000
   alpha: 0.05
-  epsilon: 0.9
+  epsilon: 0.1
   decay: 0.99
-  interval: 20
+  interval: 40
   estimators: 4
   buffer_size: 100
-  replay_size: 10
+  replay_size: 20
+
+mmbq_learning:
+  steps: 10000
+  alpha: 0.05
+  epsilon: 0.1
+  decay: 0.99
+  interval: 40
+  max_estimators: 5
+  cum_len: 5
+  bandit_lr: 0.05
+  buffer_size: 100
+  replay_size: 20
