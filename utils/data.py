@@ -278,11 +278,11 @@ def plot_V_values(env, star_values, data, exp_name):
                 grid[y, x] = val
 
         fig, ax = plt.subplots(dpi=200)
-        ax.matshow(grid, cmap=plt.cm.inferno)
+        ax.matshow(grid, cmap=plt.cm.coolwarm)
         for i in range(grid.shape[1]):
             for j in range(grid.shape[0]):
                 c = '{:0.2f}'.format(grid[j,i])
-                ax.text(i, j, c, va='center', ha='center', fontsize=6, backgroundcolor='white')
+                ax.text(i, j, c, va='center', ha='center', fontsize=6)#, backgroundcolor='white')
         plt.tight_layout()
         plt.savefig(join(exp_name, '{}_diff.png'.format(labels[idx])), bbox_inches='tight')
 
@@ -357,11 +357,11 @@ def plot_heatmap(visits, exp_name):
 
         fig, ax = plt.subplots(dpi=200)
 
-        ax.matshow(visit[-2, :, :], cmap=plt.cm.inferno)
+        ax.matshow(visit[-2, :, :], cmap=plt.cm.coolwarm)
         for i in range(visit[-2, :, :].shape[1]):
             for j in range(visit[-2, :, :].shape[0]):
                 c = '{:0.0f}'.format(visit[-2, j,i, 0])
-                ax.text(i, j, c, va='center', ha='center', fontsize=6, backgroundcolor='white')
+                ax.text(i, j, c, va='center', ha='center', fontsize=6)#, backgroundcolor='white')
 
         plt.tight_layout()
         plt.savefig(join(exp_name, 'visits', '{}_freq.png'.format(labels[idx])), bbox_inches='tight')

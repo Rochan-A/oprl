@@ -240,16 +240,6 @@ if __name__ == "__main__":
         args.exp_name
         )
 
-    print("Maxmin Bandit Q learning")
-    MMBQ_Logger = np.empty(( config.exp.repeat, config.mmbq_learning.steps, config.mmbq_learning.max_estimators, env.nS, env.nA ))
-    MMBQ_EnvLogger = np.empty(( config.exp.repeat, config.mmbq_learning.steps, 2 ))
-    for rep in tqdm(range(config.exp.repeat)):
-        _, MMBQ_Logger[rep, :, :, :, :], MMBQ_EnvLogger[rep, ::] = MaxminBanditQ(
-            env,
-            config,
-            copy.deepcopy(Q),
-        )
-
     # Plot mean cummulative reward
     plot_mean_cum_rewards(
         env_loggers,
