@@ -60,7 +60,7 @@ class DistanceBonus(gym.core.Wrapper):
 
         env = self.unwrapped
         agent = env.agent_pos
-        goal = env.goal_pos
+        goal = env.goal_pos[0]
 
         bonus = math.sqrt(
             (agent[0] - goal[0])**2 + (agent[1] - goal[1])**2
@@ -358,6 +358,8 @@ class Maps(gym.Env):
     def load_map(self, path):
         """Load world from file located at path"""
         self.map, self.transition = [np.loadtxt(A) for A in self._tokenizer(path)]
+        self.map = np.array(self.map, dtype=np.int64)
+        self.transition = np.array(self.transition, dtype=np.int64)
 
     def step(self, action):
         """Given action (and current state), transition to next state"""
@@ -413,17 +415,13 @@ class Maps(gym.Env):
 
             # Transition was from a rand_r state
             if self.state[prev_pos[0], prev_pos[1]] == OBJECT_TO_IDX['rand_r']:
-
-                # check if the transition needs to be rewarded
-                if self.transition[prev_pos[0], prev_pos[1]] == action+1 or \
-                    self.transition[prev_pos[0], prev_pos[1]] == 5:
-                    try:
-                        pos = np.where((self.stoch_r_pos == prev_pos).all(axis=1))[0][0]
-                        if self.stoch_r_state[pos] == 0:
-                            reward = REWARDS[self.state[prev_pos[0], prev_pos[1]]][np.random.randint(0, 10)]
-                            self.stoch_r_state[pos] += 1
-                    except:
-                        reward = 0
+                try:
+                    pos = np.where((self.stoch_r_pos == prev_pos).all(axis=1))[0]
+                    if self.stoch_r_state[pos] == 0:
+                        reward = REWARDS[self.state[prev_pos[0], prev_pos[1]]][np.random.randint(0, 10)]
+                        self.stoch_r_state[pos] += 1
+                except:
+                    reward = 0
 
             else:
                 if isinstance(REWARDS[self.state[self.agent_pos[0], self.agent_pos[1]]], int):
@@ -465,7 +463,7 @@ class Maps(gym.Env):
         # self.single_visit_state = np.zeros((len(self.single_visit_pos)))
 
         # Keep track of stoch reward state. 0 - unvisited, 1 = visited
-        self.stoch_r_pos = np.stack(np.where(self.state == OBJECT_TO_IDX["rand_r"]))
+        self.stoch_r_pos = np.stack(np.where(self.state == OBJECT_TO_IDX["rand_r"]), axis=-1)
         self.stoch_r_state = np.zeros((len(self.stoch_r_pos)))
 
         # Keep track of positions we can transition to from stochastic states

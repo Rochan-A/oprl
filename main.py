@@ -24,7 +24,7 @@ def set_initial_values(config, env):
     if config.init.Q == 'zero':
         Q = np.zeros((env.nS, env.nA), dtype=np.float64)
     elif config.init.Q == 'rand':
-        Q = np.random.random((env.nS, env.nA)).astype(dtype=np.float64)
+        Q = np.random.normal(0, 0.01, (env.nS, env.nA)).astype(dtype=np.float64)
     elif config.init.Q == 'opt':
         Q = np.zeros((env.nS, env.nA), dtype=np.float64)
         Q.fill(1.0)
@@ -37,7 +37,7 @@ def set_initial_values(config, env):
     if config.init.V == 'zero':
         V = np.zeros((env.nS,), dtype=np.float64)
     elif config.init.V == 'rand':
-        V = np.random.random((env.nS,)).astype(dtype=np.float64)
+        V = np.random.normal(0, 0.01, (env.nS,)).astype(dtype=np.float64)
     elif config.init.V == 'opt':
         V = np.zeros((env.nS,), dtype=np.float64)
         V.fill(1.0)
@@ -53,6 +53,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-c", "--config", help="Path to Config file", required=True)
     parser.add_argument("--seed", help="set numpy & env seed", type=int, default=0)
+    parser.add_argument("-e", "--exp_name", help="Experiment name", type=str, required=True)
 
     args = parser.parse_args()
     rng = np.random.default_rng(args.seed)
@@ -60,6 +61,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         config = yaml.safe_load(f)
     config = EasyDict(config)
+
+    make_dirs(join(args.exp_name))
 
     if config.model == "one_state":
         env = OneStateMDP(rng)
@@ -79,17 +82,16 @@ if __name__ == "__main__":
             env = MapsEnvModel(env)
 
         # env = DistanceBonus(env)
-        # env = StateBonus(env)
-        # env = ActionBonus(env)
+        env = StateBonus(env)
+        env = ActionBonus(env)
         if ast.literal_eval(config.env_mods.delay) is not None:
             env = DelayedReward(env, config.env_mods.delay)
         if 'file' in config.model:
             env.load_map(config.map_path)
-        env_name = config.map_path.split('/')[-1].split('.')[0]
-        make_dirs(env_name)
+
         _ = env.reset()
-        plt.imsave(join(env_name, 'env.png'), env.map)
-        save_matrix_as_image(env, np.arange(env.nS), join(env_name, 'state_indices.png'), int_=True)
+        plt.imsave(join(args.exp_name, 'env.png'), env.map)
+        save_matrix_as_image(env, np.arange(env.nS), join(args.exp_name, 'state_indices.png'), int_=True)
 
 
     env_loggers = []
@@ -183,6 +185,7 @@ if __name__ == "__main__":
             copy.deepcopy(Q)
         )
     env_loggers.append(MMQ_EnvLogger)
+    loggers.append(MMQ_Logger[:, 0, ::])
     visits.append(MMQ_Visits)
 
 
@@ -212,22 +215,22 @@ if __name__ == "__main__":
         loggers,
         visits,
         ['Vanilla Q', 'Double Q', 'Pessimistic Q', 'Maxmin Q', 'Mean-Var Q'],
-        ['Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Mean-Var Q'],
-        env_name
+        ['Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Maxmin Q (1)', 'Mean-Var Q'],
+        args.exp_name
     )
 
     # Plot visitation heat map
     plot_heatmap(
         visits,
         ['Vanilla Q', 'Double Q', 'Pessimistic Q', 'Maxmin Q', 'Mean-Var Q'],
-        env_name
+        args.exp_name
         )
 
     # Plot mean cummulative reward
     plot_mean_cum_rewards(
         env_loggers,
         ['Vanilla Q', 'Double Q', 'Pessimistic Q', 'Maxmin Q', 'Mean-Var Q'],
-        env_name,
+        args.exp_name,
         do_smooth=True
         )
 
@@ -236,14 +239,14 @@ if __name__ == "__main__":
         env,
         q_star,
         loggers,
-        ['Q Optimal', 'Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Mean-Var Q'],
-        env_name
+        ['Q Optimal', 'Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Maxmin Q (1)', 'Mean-Var Q'],
+        args.exp_name
     )
 
     plot_V_values(
         env,
         [V_star, q_star],
         loggers,
-        ['Q Optimal', 'Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Mean-Var Q'],
-        env_name
+        ['Q Optimal', 'Vanilla Q', 'Double Q1', 'Double Q1', 'Pessimistic Q', 'Maxmin Q (1)', 'Mean-Var Q'],
+        args.exp_name
     )

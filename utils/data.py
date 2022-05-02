@@ -54,7 +54,6 @@ def plot_overestimation(q_star, Q, DQ1, DQ2, PQ):
     plt.xticks(x_axis, lbs)
     plt.legend()
     plt.savefig("over.pdf")
-    plt.show()
 
 
 def get_overestimation_time_method(q_star, vl, steps, DQ=False):
@@ -96,7 +95,6 @@ def plot_overestimation_time(q_star, vlQ, vlDQ, vlPQ, config):
     )
     plt.legend()
     plt.savefig("over_time.pdf")
-    plt.show()
 
 
 def save_matrix_as_image(env, V, filename, int_=False, cmap=plt.cm.Blues):
@@ -313,7 +311,6 @@ def plot_V_values(env, star_values, data, labels, env_name):
         ax.legend()
         ax.set_title("V Value")
         ax.set_xlabel('State #')
-    plt.show()
     plt.tight_layout()
     plt.savefig(join(env_name, 'state_values.png'), bbox_inches='tight')
 
