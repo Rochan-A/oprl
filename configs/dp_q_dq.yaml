@@ -1,4 +1,4 @@
-model: filev2 # one_state, five_state, gridworld, file
+model: filev2 # one_state, five_state, gridworld, file, filev2
 # if using gridworld, specify the gridworld env name
 # eg. MiniGrid-SimpleCrossingS11N5-v0 MiniGrid-Empty-8x8-v0
 # MiniGrid-LavaCrossingS11N5-v0 MiniGrid-LavaGapS7-v0 MiniGrid-FourRooms-v0
@@ -14,8 +14,8 @@ env_mods:
   distance_bonus: False
 
 init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
-  Q: zero
-  V: zero
+  Q: rand
+  V: rand
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
@@ -24,21 +24,21 @@ exp:
 value_iteration_theta: 0.0001
 
 q_learning:
-  steps: 10000 # episodes
+  steps: 1000 # episodes
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99 # epsilon decay rate
   interval: 40 # epsilon decay interval
 
 dq_learning:
-  steps: 10000
+  steps: 1000
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99
   interval: 40
 
 pessimistic_q_learning:
-  steps: 10000
+  steps: 1000
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99
@@ -46,7 +46,7 @@ pessimistic_q_learning:
   pessimism_coeff: 0.1
 
 mmq_learning:
-  steps: 10000
+  steps: 1000
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99
@@ -56,7 +56,7 @@ mmq_learning:
   replay_size: 10
 
 mmbq_learning:
-  steps: 10000
+  steps: 1000
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99
@@ -68,7 +68,7 @@ mmbq_learning:
   replay_size: 20
 
 meanvar_q_learning:
-  steps: 10000
+  steps: 1000
   alpha: 0.05
   epsilon: 0.1
   decay: 0.99

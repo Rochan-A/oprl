@@ -89,10 +89,10 @@ if __name__ == "__main__":
         if 'file' in config.model:
             env.load_map(config.map_path)
 
+            _ = env.reset()
+            plt.imsave(join(args.exp_name, 'env.png'), env.map)
+            save_matrix_as_image(env, np.arange(env.nS), join(args.exp_name, 'state_indices.png'), int_=True)
         _ = env.reset()
-        plt.imsave(join(args.exp_name, 'env.png'), env.map)
-        save_matrix_as_image(env, np.arange(env.nS), join(args.exp_name, 'state_indices.png'), int_=True)
-
 
     # Save experiment logs
     env_loggers = {}
@@ -189,7 +189,6 @@ if __name__ == "__main__":
                 copy.deepcopy(Q)
             )
         env_loggers['Maxmin Q n_{}'.format(estimators)] = MMQ_EnvLogger
-        print(MMQ_Logger[:, :, 0, ::].shape)
         loggers['Maxmin Q n_{}'.format(estimators)] = MMQ_Logger[:, :, 0, ::]
         visits['Maxmin Q n_{}'.format(estimators)] = MMQ_Visits
 
@@ -213,6 +212,7 @@ if __name__ == "__main__":
     loggers['Mean-Var Q'] = MVQ_Logger
     visits['Mean-Var Q'] = MVQ_Visits
 
+
     print("Maxmin Bandit Q learning")
     MMBQ_Logger = np.empty((config.exp.repeat, config.mmbq_learning.steps, config.mmbq_learning.max_estimators, env.nS, env.nA))
     MMBQ_EnvLogger = np.empty((config.exp.repeat, config.mmbq_learning.steps, 2))
@@ -223,7 +223,6 @@ if __name__ == "__main__":
             copy.deepcopy(Q),
         )
     env_loggers['Maxmin Bandit Q'] = MMBQ_EnvLogger
-    print(MMBQ_Logger[:, :, 0, ::].shape)
     loggers['Maxmin Bandit Q'] = MMBQ_Logger[:, :, 0, ::]
 
 

@@ -258,7 +258,7 @@ def plot_V_values(env, star_values, data, exp_name):
     labels = list(data.keys())
     V_star, q_star = star_values
     # Plot true values
-    save_matrix_as_image(env, V_star, join(exp_name, '{}.png'.format(labels[0])))
+    save_matrix_as_image(env, V_star, join(exp_name, 'Optimal Q.png'))
     means, stds = [], []
     for idx, val in enumerate(data.values()):
         values = np.zeros((val.shape[0], V_star.shape[0])) # (# of exps, nS)
@@ -335,23 +335,25 @@ def plot_V_values(env, star_values, data, exp_name):
 
 def save_experiments(env_loggers, loggers, visits, exp_name):
     """Save experiment data"""
+    make_dirs(join(exp_name, 'store'))
     for key in env_loggers:
-        compress_pickle(join(exp_name, key + '_env.pbz2'), env_loggers[key])
+        compress_pickle(join(exp_name, 'store', key + '_env.pbz2'), env_loggers[key])
 
     for key in loggers:
-        compress_pickle(join(exp_name, key + '_qvals.pbz2'), loggers[key])
+        compress_pickle(join(exp_name, 'store', key + '_qvals.pbz2'), loggers[key])
 
     for key in visits:
-        compress_pickle(join(exp_name, key + '_visits.pbz2'), visits[key])
+        compress_pickle(join(exp_name, 'store', key + '_visits.pbz2'), visits[key])
 
 
 def plot_heatmap(visits, exp_name):
+    make_dirs(join(exp_name, 'visits'))
     labels = list(visits.keys())
     for idx, visit in enumerate(visits.values()):
         counts = visit.shape[0]
-        fps = int(counts/600)
+        fps = max(10, int(counts/600))
         clip = ImageSequenceClip(list(visit), fps=fps)
-        clip.write_gif(join(exp_name, '{}.gif'.format(labels[idx])), fps=fps)
+        clip.write_gif(join(exp_name, 'visits', '{}.gif'.format(labels[idx])), fps=fps)
 
         fig, ax = plt.subplots(dpi=200)
 
@@ -362,4 +364,4 @@ def plot_heatmap(visits, exp_name):
                 ax.text(i, j, c, va='center', ha='center', fontsize=6, backgroundcolor='white')
 
         plt.tight_layout()
-        plt.savefig(join(exp_name, '{}_visit_freq.png'.format(labels[idx])), bbox_inches='tight')
+        plt.savefig(join(exp_name, 'visits', '{}_freq.png'.format(labels[idx])), bbox_inches='tight')
