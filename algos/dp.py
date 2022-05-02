@@ -86,7 +86,7 @@ def value_iteration_gridworld(
         delta = 0
         for s_i in range(nS):
             v = initV[s_i]
-            s = [0] * env.nS
+            s = [0] * env.nA
             for a_i in range(env.nA):
                 s[a_i] = np.sum(env.TD(s_i, a_i) * (env.R(s_i, a_i) + gamma * initV[:]))
             initV[s_i] = max(s)

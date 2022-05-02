@@ -6,7 +6,6 @@ env: MiniGrid-Empty-8x8-v0
 map_path: ./maps/lava.txt
 gamma: 0.9
 
-# Environment Modifiers
 env_mods:
   # (num of timesteps after reward is actually returned, except for terminal state)
   delay: None # inf, int, None

@@ -15,8 +15,6 @@ from envs import *
 from algos import *
 from policies import GreedyPolicy
 
-# plt.rcParams["figure.figsize"] = (20, 6)
-# plt.rcParams["figure.dpi"] = 200
 
 def make_dirs(path):
     pathlib.Path(path).mkdir(parents=True, exist_ok=True)
@@ -169,19 +167,23 @@ def plot_mean_cum_rewards(data, labels):
         # reward
         means.append(val[:, :, 0].mean(0, dtype=np.float64))
         stds.append(val[:, :, 0].std(0, ddof=1, dtype=np.float64))
-        # print(i, val.shape, val[:, :, 0].min() )
 
     fig, ax = plt.subplots(figsize=(20, 6), dpi=200)
     clrs = sns.color_palette("husl", len(data))
     with sns.axes_style("darkgrid"):
         for i in range(len(data)):
             ax.plot(np.arange(data[i].shape[-2]), means[i], label=labels[i], c=clrs[i])
-            ax.fill_between(np.arange(data[i].shape[-2]), means[i]-stds[i], means[i]+stds[i], alpha=0.3, facecolor=clrs[i])
+            ax.fill_between(
+                np.arange(data[i].shape[-2]),
+                means[i]-stds[i],
+                means[i]+stds[i],
+                alpha=0.3,
+                facecolor=clrs[i]
+            )
         ax.legend()
         ax.set_title("Mean Cummulative Reward")
         ax.set_xlabel('Episode')
         ax.set_ylabel('Reward')
-    plt.show()
     plt.savefig('reward_plot.png')
 
 
@@ -210,16 +212,33 @@ def plot_Q_values(env, q_star, data, labels):
             for a in range(4):
                 if not (env.TD(s, a) == 0).all():
                     plt.figure(figsize=(20, 6), dpi=200)
-                    plt.plot(np.arange(data[0].shape[1]), [q_star[s, a]]*data[1].shape[1], '--', alpha=0.7, label=labels[0], c=clrs[0])
+                    plt.plot(
+                        np.arange(data[0].shape[1]),
+                        [q_star[s, a]]*data[1].shape[1],
+                        '--',
+                        alpha=0.7,
+                        label=labels[0],
+                        c=clrs[0]
+                    )
                     for i in range(len(data)):
-                        plt.plot(np.arange(data[i].shape[1]), means[i][:, s, a], label=labels[i+1], c=clrs[i+1])
-                        plt.fill_between(np.arange(data[i].shape[1]), means[i][:, s, a]-stds[i][:, s, a], means[i][:, s, a]+stds[i][:, s, a], alpha=0.3, facecolor=clrs[i+1])
+                        plt.plot(
+                            np.arange(data[i].shape[1]),
+                            means[i][:, s, a],
+                            label=labels[i+1],
+                            c=clrs[i+1]
+                        )
+                        plt.fill_between(
+                            np.arange(data[i].shape[1]),
+                            means[i][:, s, a]-stds[i][:, s, a],
+                            means[i][:, s, a]+stds[i][:, s, a],
+                            alpha=0.3,
+                            facecolor=clrs[i+1]
+                        )
                     plt.legend()
                     plt.title('state-{}-action-{}-values'.format(s, a))
                     plt.ylabel("Q Value")
                     plt.xlabel('Episode')
-                    # plt.show()
-                    plt.savefig('state-action/tstate-{}-action-{}-values.png'.format(s, a))
+                    plt.savefig('state-action/s-{}-a-{}.png'.format(s, a))
 
 
 def plot_V_values(env, star_values, data, labels):
@@ -252,11 +271,27 @@ def plot_V_values(env, star_values, data, labels):
     fig, ax = plt.subplots(figsize=(20, 6), dpi=200)
     with sns.axes_style("darkgrid"):
         # optimal values
-        ax.bar(np.arange(V_star.shape[0]) - 1.5*bar_width, V_star, width=bar_width, label=labels[0])
-        ax.bar(np.arange(V_star.shape[0]) - 0.7*bar_width, means[0], yerr=stds[0], ecolor='black', capsize=2, align='center', width=bar_width, label=labels[1])
-        ax.bar(np.arange(V_star.shape[0]), means[1], yerr=stds[1], ecolor='black', capsize=2, align='center', width=bar_width, label=labels[2])
-        ax.bar(np.arange(V_star.shape[0]) + 0.7*bar_width, means[2], yerr=stds[2], ecolor='black', capsize=2, align='center', width=bar_width, label=labels[3])
-        ax.bar(np.arange(V_star.shape[0]) + 1.5*bar_width, means[3], yerr=stds[3], ecolor='black', capsize=2, align='center', width=bar_width, label=labels[4])
+        ax.bar(
+            np.arange(V_star.shape[0]) - 1.5*bar_width,
+            V_star, width=bar_width, label=labels[0]
+        )
+        ax.bar(
+            np.arange(V_star.shape[0]) - 0.7*bar_width,
+            means[0], yerr=stds[0], ecolor='black', capsize=2,
+            align='center', width=bar_width, label=labels[1]
+        )
+        ax.bar(np.arange(V_star.shape[0]), means[1], yerr=stds[1],
+            ecolor='black', capsize=2, align='center',
+            width=bar_width, label=labels[2]
+        )
+        ax.bar(np.arange(V_star.shape[0]) + 0.7*bar_width, means[2],
+            yerr=stds[2], ecolor='black', capsize=2, align='center',
+            width=bar_width, label=labels[3]
+        )
+        ax.bar(np.arange(V_star.shape[0]) + 1.5*bar_width, means[3],
+            yerr=stds[3], ecolor='black', capsize=2, align='center',
+            width=bar_width, label=labels[4]
+        )
 
         ax.legend()
         ax.set_title("V Value")
@@ -297,9 +332,14 @@ if __name__ == "__main__":
 
     # Value Iteration
     print("Value Iteration (DP)")
-    V_star, q_star = value_iteration_gridworld(
-        env, V, config.value_iteration_theta, config.gamma
-    )
+    if '_state' in config.model:
+        V_star, q_star = value_iteration(
+            env_with_model, V, config.value_iteration_theta, config.gamma
+        )
+    else:
+        V_star, q_star = value_iteration_gridworld(
+            env, V, config.value_iteration_theta, config.gamma
+        )
 
 
     # Vanilla Q-learning
@@ -395,6 +435,3 @@ if __name__ == "__main__":
     )
 
     save_value_as_image(env, np.arange(env.nS), 'state_indices', int_=True)
-
-    # plot_overestimation_time(q_star, vlQ, vlDQ, vlPQ, config)
-    # plot_overestimation(q_star, Q_q, DQ1, DQ2, PQ)
