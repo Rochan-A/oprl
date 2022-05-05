@@ -10,7 +10,7 @@ import _pickle as cPickle
 import pathlib
 
 from policies import GreedyPolicy
-from moviepy.editor import ImageSequenceClip
+# from moviepy.editor import ImageSequenceClip
 
 
 def make_dirs(path):
@@ -179,7 +179,7 @@ def plot_mean_cum_rewards(data, exp_name, do_smooth=False):
                 np.arange(data[key].shape[-2]),
                 means[i]-stds[i],
                 means[i]+stds[i],
-                alpha=0.3,
+                alpha=0.1,
                 facecolor=clrs[i]
             )
         ax.legend()
@@ -224,6 +224,8 @@ def plot_Q_values(env, q_star, data, exp_name):
                         c=clrs[0]
                     )
                     for i, key in enumerate(data):
+                        print(i, key)
+                        print(clrs[i+1])
                         plt.plot(
                             np.arange(data[key].shape[1]),
                             means[i][:, s, a],
@@ -317,14 +319,14 @@ def plot_V_values(env, star_values, data, exp_name):
             yerr=stds[2], ecolor='black', capsize=2, align='center',
             width=bar_width, label=labels[3]
         )
-        ax.bar(np.arange(V_star.shape[0]) + 1.5*bar_width, means[3],
-            yerr=stds[3], ecolor='black', capsize=2, align='center',
-            width=bar_width, label=labels[4]
-        )
-        ax.bar(np.arange(V_star.shape[0]) + 2*bar_width, means[4],
-            yerr=stds[4], ecolor='black', capsize=2, align='center',
-            width=bar_width, label=labels[5]
-        )
+        # ax.bar(np.arange(V_star.shape[0]) + 1.5*bar_width, means[3],
+        #     yerr=stds[3], ecolor='black', capsize=2, align='center',
+        #     width=bar_width, label=labels[4]
+        # )
+        # ax.bar(np.arange(V_star.shape[0]) + 2*bar_width, means[4],
+        #     yerr=stds[4], ecolor='black', capsize=2, align='center',
+        #     width=bar_width, label=labels[5]
+        # )
 
         ax.legend()
         ax.set_title("V Value")

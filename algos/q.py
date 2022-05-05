@@ -9,11 +9,13 @@ from policies.q_values import EGPolicy
 from easydict import EasyDict
 
 from utils.buffers import RunningStats
+from numpy_ringbuffer import RingBuffer
 
 VISIT_LOG_INTERVAL = 10
 
 def Q_learning(
     env: gym.Env,
+    config,
     n: int,
     alpha: float,
     gamma: float,
@@ -54,6 +56,8 @@ def Q_learning(
 
     pi = EGPolicy(Q, epsilon)
 
+    memory = RingBuffer(capacity=config.q_learning.buffer_size, dtype=(float, (4)) )
+
     for i in range(n):
         s = env.reset()
         done = False
@@ -64,7 +68,13 @@ def Q_learning(
 
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
-            Q[s, a] += alpha * (r + (gamma * np.max(Q[s1, :])) - Q[s, a])
+
+            memory.extendleft( np.array([[s, a, r, s1]]) )
+            sample_idx = np.random.choice(np.arange(len(memory)), config.q_learning.replay_size)
+            update_trans = memory[sample_idx]
+            s_, a_, r_, s1_ = update_trans[:, 0], update_trans[:, 1], update_trans[:, 2], update_trans[:, 3]
+
+            Q[ np.int64(s_), np.int64(a_) ] += alpha * (r_ + (gamma * np.max(Q[ np.int64(s1_), :])) - Q[ np.int64(s_), np.int64(a_) ])
             s = s1
 
             pi.update(Q, epsilon)
@@ -88,14 +98,14 @@ def Q_learning(
 
 def DoubleQ(
     env: gym.Env,
+    config,
     n: int,
     alpha: float,
     gamma: float,
     epsilon: float,
     decay: float,
     interval: int,
-    Q1: np.ndarray,
-    Q2: np.ndarray
+    Q_init: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     input:
@@ -120,24 +130,27 @@ def DoubleQ(
     # Double Q Learning (Hint: Sutton Book p. 135-136)
     #####################
     # Log Q value, cummulative reward, # of steps
-    Qlogger1 = np.zeros((n, env.nS, env.nA,))
-    Qlogger2 = np.zeros((n, env.nS, env.nA,))
+    Qlogger = np.zeros((n, 2, env.nS, env.nA,))
     Envlogs = np.zeros((n,2))
     VisitLogger = np.zeros((int(n/VISIT_LOG_INTERVAL), env.state.shape[0], env.state.shape[1], 1))
     step_visit_logger = np.zeros((env.state.shape[0], env.state.shape[1], 1))
 
+    Q = np.repeat( Q_init[np.newaxis, :, :], 2,  axis=0)
+    assert Q.shape == (2, env.nS, env.nA)
+
     terminal = env.final_state
-    Q1[terminal, :] = 0
-    Q2[terminal, :] = 0
+    Q[:, terminal, :] = 0
 
     # Keep track of which policy we are using
     # (see https://proceedings.neurips.cc/paper/2010/file/091d584fced301b442654dd8c23b3fc9-Paper.pdf)
     if np.random.random() < 0.5:
-        pi = EGPolicy(Q1, epsilon)
+        pi = EGPolicy(Q[0, :, :], epsilon)
         A = True
     else:
-        pi = EGPolicy(Q2, epsilon)
+        pi = EGPolicy(Q[1, :, :], epsilon)
         A = False
+
+    memory = RingBuffer(capacity=config.dq_learning.buffer_size, dtype=(float, (4)) )
 
     for i in range(n):
         s = env.reset()
@@ -150,22 +163,28 @@ def DoubleQ(
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
 
+            memory.extendleft( np.array([[s, a, r, s1]]) )
+            sample_idx = np.random.choice(np.arange(len(memory)), config.dq_learning.replay_size )
+            update_trans = memory[sample_idx]
+            s_, a_, r_, s1_ = update_trans[:, 0], update_trans[:, 1], update_trans[:, 2], update_trans[:, 3]
+
+            # print( np.int64(s_), np.int64(a_), np.int64(r_), np.int64(s1_), np.argmax(Q[0, np.int64(s1_), :]), Q.shape)
             if A:
-                Q1[s, a] += alpha * (
-                    r + gamma * Q2[s1, np.argmax(Q1[s1, :])] - Q1[s, a]
+                Q[0, np.int64(s_), np.int64(a_)] += alpha * (
+                    r_ + gamma * Q[1, np.int64(s1_), np.argmax(Q[0, np.int64(s1_), :], axis=-1)] - Q[0, np.int64(s_), np.int64(a_)]
                 )
             else:
-                Q2[s, a] += alpha * (
-                    r + gamma * Q1[s1, np.argmax(Q2[s1, :])] - Q2[s, a]
+                Q[1, np.int64(s_), np.int64(a_)] += alpha * (
+                    r_ + gamma * Q[0, np.int64(s1_), np.argmax(Q[1, np.int64(s1_), :], axis=-1)] - Q[1, np.int64(s_), np.int64(a_) ]
                 )
 
             s = s1
 
             if np.random.random() < 0.5:
-                pi.update(Q1, epsilon)
+                pi.update(Q[0, :, :], epsilon)
                 A = True
             else:
-                pi.update(Q2, epsilon)
+                pi.update(Q[1, :, :], epsilon)
                 A = False
 
             c_r += r
@@ -179,11 +198,11 @@ def DoubleQ(
                 VisitLogger[int(i/VISIT_LOG_INTERVAL)-1, ::] = step_visit_logger + VisitLogger[int(i/VISIT_LOG_INTERVAL)-2, ::]
             step_visit_logger = np.zeros((env.state.shape[0], env.state.shape[1], 1))
 
-        Qlogger1[i, ::] = Q1
-        Qlogger2[i, ::] = Q2
+        Qlogger[i, 0, :, :] = Q[0, :, :]
+        Qlogger[i, 1, :, :] = Q[1, :, :]
         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
 
-    return Q1, Q2, Qlogger1, Qlogger2, np.int64(Envlogs), VisitLogger
+    return Q, Qlogger, np.int64(Envlogs), VisitLogger
 
 
 def get_min_q(Q: np.array, config, active_estimators=-1):
@@ -233,7 +252,7 @@ def MaxminQ(env: gym.Env, config, estimators, Q_init: np.array,):
     epsilon = config.mmq_learning.epsilon
     pi = EGPolicy(Q_min, epsilon)
 
-    memory = deque([], maxlen=config.mmq_learning.buffer_size)
+    memory = RingBuffer(capacity=config.mmq_learning.buffer_size, dtype=(float, (4)))
 
     for i in range( config.mmq_learning.steps ):
         s = env.reset()
@@ -245,13 +264,12 @@ def MaxminQ(env: gym.Env, config, estimators, Q_init: np.array,):
 
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
-            memory.append([s, a, r, s1])
+            memory.extendleft( np.array([[s, a, r, s1]]) )
 
-            for j in range(config.mmq_learning.replay_size):
-                update_ind = np.random.choice(estimators)
-                update_trans = random.sample(memory, 1)[0]
-                a_p = np.argmax(Q_min[update_trans[3], :])
-                MMQ[update_ind, update_trans[0], update_trans[1]] +=  config.mmq_learning.alpha * (update_trans[2] + config.gamma * Q_min[update_trans[3], a_p] - MMQ[update_ind, update_trans[0], update_trans[1]] )
+            update_ind = np.random.choice( estimators, config.mmq_learning.replay_size )
+            update_trans = memory[np.random.choice( len(memory), config.mmq_learning.replay_size ), :]
+            a_p = np.argmax(Q_min[np.int64(update_trans[:, 3]), :], axis=-1)
+            MMQ[ update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] +=  config.mmq_learning.alpha * (update_trans[:, 2] + config.gamma * Q_min[np.int64(update_trans[:, 3]), a_p] - MMQ[update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] )
 
             s = s1
 
@@ -299,7 +317,7 @@ def MaxminBanditQ(env: gym.Env, config, Q_init: np.array):
     epsilon = config.mmbq_learning.epsilon
     pi = EGPolicy(Q_min, epsilon)
 
-    memory = deque([], maxlen = config.mmbq_learning.buffer_size)
+    memory = RingBuffer(capacity=config.mmbq_learning.buffer_size, dtype=(float, (4)))
     c_r_memory = deque([], maxlen = config.mmbq_learning.cum_len + 1)
 
     for i in range( config.mmbq_learning.steps ):
@@ -309,13 +327,12 @@ def MaxminBanditQ(env: gym.Env, config, Q_init: np.array):
         while not done:
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
-            memory.append([s, a, r, s1])
+            memory.extendleft( np.array([[s, a, r, s1]]) )
 
-            for j in range(config.mmbq_learning.replay_size):
-                update_ind = np.random.choice( config.mmbq_learning.max_estimators )
-                update_trans = random.sample(memory, 1)[0]
-                a_p = np.argmax(Q_min[update_trans[3], :])
-                MMBQ[update_ind, update_trans[0], update_trans[1]] +=  config.mmbq_learning.alpha * (update_trans[2] + config.gamma * Q_min[update_trans[3], a_p] - MMBQ[update_ind, update_trans[0], update_trans[1]] )
+            update_ind = np.random.choice( config.mmbq_learning.max_estimators, config.mmbq_learning.replay_size )
+            update_trans = memory[np.random.choice( len(memory), config.mmbq_learning.replay_size ), :]
+            a_p = np.argmax(Q_min[np.int64(update_trans[:, 3]), :], axis=-1)
+            MMBQ[ update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] +=  config.mmbq_learning.alpha * (update_trans[:, 2] + config.gamma * Q_min[np.int64(update_trans[:, 3]), a_p] - MMBQ[update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] )
 
             s = s1
 
@@ -329,13 +346,16 @@ def MaxminBanditQ(env: gym.Env, config, Q_init: np.array):
         c_r_memory.append([c_r, active_estimators])
         if len(c_r_memory) > config.mmbq_learning.cum_len:
             new_reward = (np.sum( list(c_r_memory), axis=0 )[0] - c_r_memory[0][0]) * 1.0 / config.mmbq_learning.cum_len
-            num_active_estimators = c_r_memory[0][1]
+            num_active_estimators = c_r_memory[0][1] - 1
             q_est[num_active_estimators] = q_est[num_active_estimators] + config.mmbq_learning.bandit_lr * (new_reward - q_est[num_active_estimators])
             num_a_est[ num_active_estimators ] += 1
 
         MMBQ_logger[i, :, :, :] = MMBQ
         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
         active_estimators = get_active_estimators(q_est, num_a_est, i+2)
+
+        if i%100 == 0:
+            print(num_a_est)
 
     return MMBQ, MMBQ_logger, np.int64(Envlogs)
 
@@ -510,7 +530,7 @@ def MeanVarianceQ(
     """
 
     #####################
-    # Keep track of mean and variance rewards 
+    # Keep track of mean and variance rewards
     #####################
 
     # Log Q value, cummulative reward, # of steps
