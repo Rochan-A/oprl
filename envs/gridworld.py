@@ -7,7 +7,7 @@ import gym_minigrid
 from gym_minigrid.wrappers import *
 
 from enum import IntEnum
-from .dynamics import EnvSpec
+from .mdp import EnvSpec
 
 
 # Map of object type to integers
@@ -25,12 +25,15 @@ OBJECT_TO_IDX = {
     "agent": 10,
 }
 
+RAND_R_MU = -0.1
+RAND_R_STD = 1
+
 # Map of rewards landing on specific position
 REWARDS = {
     0: 0,
     1: 0,
     2: 0,
-    3: [np.random.normal(-0.1, 1) for i in range(10)],
+    3: RAND_R_MU,
     4: 1,   # **** Not Implemented ****
     5: 0,
     6: 1,
@@ -174,7 +177,6 @@ class DelayedReward(gym.core.Wrapper):
 
         return obs, reward, done, info
 
-
     def reset(self, **kwargs):
         """Returns reward vector of len nS"""
         self.rew, self.time = [], []
@@ -249,7 +251,6 @@ class MapsEnvModel(gym.core.Wrapper):
 
         return res
 
-
     def R(self, state, action):
         """Returns reward vector of len nS"""
 
@@ -296,7 +297,7 @@ class MapsEnvModel(gym.core.Wrapper):
                         pos = np.where((self.env.stoch_r_pos == pos).all(axis=1))[0][0]
                         if self.env.stoch_r_state[pos] == 0:
                             res[np.where((self.S == [y, x]).all(axis=1))[0]] = \
-                                REWARDS[self.state[pos[0], pos[1]]][np.random.randint(0, 10)]
+                                REWARDS[self.state[pos[0], pos[1]]]
                     except:
                                 res[np.where((self.S == [y, x]).all(axis=1))[0]] = 0
 
@@ -403,22 +404,12 @@ class Maps(gym.Env):
         if prev_pos[0] != self.agent_pos[0] or \
             prev_pos[1] != self.agent_pos[1]:
 
-            # # Transition is to one_r state
-            # if self.state[self.agent_pos[0], self.agent_pos[1]] == OBJECT_TO_IDX['one_r']:
-            #     try:
-            #         pos = np.where((self.single_visit_pos == self.agent_pos).all(axis=1))[0][0]
-            #         if self.single_visit_state[pos] == 0:
-            #             reward = REWARDS[self.state[self.agent_pos[0], self.agent_pos[1]]]
-            #             self.single_visit_state[pos] += 1
-            #     except:
-            #         reward = 0
-
             # Transition was from a rand_r state
             if self.state[prev_pos[0], prev_pos[1]] == OBJECT_TO_IDX['rand_r']:
                 try:
                     pos = np.where((self.stoch_r_pos == prev_pos).all(axis=1))[0]
                     if self.stoch_r_state[pos] == 0:
-                        reward = REWARDS[self.state[prev_pos[0], prev_pos[1]]][np.random.randint(0, 10)]
+                        reward = np.random.normal(-RAND_R_MU, RAND_R_STD)
                         self.stoch_r_state[pos] += 1
                 except:
                     reward = 0

@@ -454,3 +454,135 @@ class MeanVarQLearning(TDControlAgent):
             self.policy.update(state, self.actionValueTable[state,:])
             maxTDError = max(maxTDError, abs(error))
         return maxTDError
+
+
+class MaxminBanditQLearning(TDControlAgent):
+
+    def __init__(self, nStates, nActions, alpha, gamma, max_estimators=5, cum_len=5, buffer_size=100, mini_batch=50, actionSelectionMethod="egreedy", epsilon=0.01,
+        tieBreakingMethod="arbitrary", valueInit="zeros"):
+
+        self.name = "Maxmin Bandit Q-Learning"
+        self.nStates = nStates
+        self.nActions = nActions
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.actionSelectionMethod = actionSelectionMethod
+
+        self.max_estimators = max_estimators        # Max Q estimators we can use
+        self.buffer_size = buffer_size              # Maxmin buffer size
+        self.mini_batch = mini_batch                # Mini-batch to sample from the buffer for updating
+
+        self.tieBreakingMethod = tieBreakingMethod
+        self.valueInit = valueInit
+        if(self.tieBreakingMethod=="arbitrary"):
+            self.argmax_function = argmax
+        elif(self.tieBreakingMethod=="consistent"):
+            self.argmax_function = np.argmax
+        else:
+            sys.exit("ERROR: Maxmin Bandit Q-Learning: tieBreakingMethod not recognized!")
+        if(self.valueInit=="zeros"):
+            self.actionValueTable = np.zeros([self.max_estimators, self.nStates, self.nActions], dtype=float)
+        elif(self.valueInit=="random"):
+            self.actionValueTable = np.random.rand(self.max_estimators, self.nStates, self.nActions)
+        else:
+            sys.exit("ERROR: Maxmin Bandit Q-Learning: valueInit not recognized!")
+        self.policy = ActionValuePolicy(self.nStates, self.nActions,
+            actionSelectionMethod=self.actionSelectionMethod, epsilon=epsilon, tieBreakingMethod=tieBreakingMethod)
+
+
+        # Bandit estimates
+        self.q_est = np.random.rand(max_estimators)
+        # UCB 'n' value
+        self.num_a_est = np.zeros(max_estimators)
+
+        self.active_estimators = self.get_active_estimators(1)
+        self.get_min_q(self.active_estimators)
+
+        self.memory = collections.deque([], maxlen = buffer_size)
+        self.c_r_memory = collections.deque([], maxlen = cum_len + 1)
+
+
+    def get_min_q(self, active_estimators=-1):
+        "Returns the minimum Q table"
+        if active_estimators == -1:
+            for idx_state in range(self.nStates):
+                self.policy.update(idx_state,
+                    self.actionValueTable[
+                        np.argmin(np.sum(self.actionValueTable[:, idx_state, :])), idx_state,:]
+                )
+        else:
+            ind = np.random.choice(self.max_estimators, active_estimators)
+            for idx_state in range(self.nStates):
+                self.policy.update(idx_state,
+                    self.actionValueTable[
+                        np.argmin(np.sum(self.actionValueTable[ind, idx_state, :])), idx_state,:]
+                )
+
+    def get_active_estimators(self, t):
+        return np.argmax( self.q_est + 2 * np.sqrt( np.log(t) / (self.num_a_est + 1e-8) ) ) + 1
+
+
+    def update(self, episode, i):
+        T = len(episode)
+        for batch in range(0, T-1, self.buffer_size):
+
+            # select random q function to update
+            q_choice = np.random.randint(0, self.n)
+
+            # select random mini-batch. NOTE: Paper does not specify the size
+            # of the mini-batch, using 0.5*len(buffer)
+            mini_batch_idx = np.random.randint(0, min(self.mini_batch, len(episode[batch:]))-1, (self.mini_batch))
+
+            for t_d in mini_batch_idx:
+                t = batch + t_d
+
+                state = episode[t]["state"]
+                action = episode[t]["action"]
+                reward = episode[t+1]["reward"]
+                next_state = episode[t+1]["state"]
+                if("allowedActions" in episode[t+1].keys()):
+                    allowedActions = episode[t+1]["allowedActions"]
+                else:
+                    allowedActions = np.array(range(self.nActions))
+
+                error = (
+                        reward
+                        + self.gamma
+                        * np.max(self.actionValueTable[q_choice, next_state, allowedActions])
+                        - self.actionValueTable[q_choice, state, action]
+                )
+
+                self.actionValueTable[q_choice, state, action] += self.alpha * error
+
+                # Update policy with min q function
+                self.policy.update(state, self.actionValueTable[np.argmin(np.sum(self.actionValueTable[:, state,: ])), state,:])
+
+
+    def getValue(self, state):
+        q_values = self.actionValueTable[np.argmin(np.sum(self.actionValueTable[:, state,: ])), state,:]
+        return np.dot(self.policy.getProbability(state), q_values)
+
+    def getActionValue(self, state, action):
+        return self.actionValueTable[np.argmin(np.sum(self.actionValueTable[:, state,: ])), state, action]
+
+    def getGreedyAction(self, state, actionsAvailable=None):
+        actionValueTable = self.actionValueTable[np.argmin(np.sum(self.actionValueTable[:, state,: ])), ::]
+        if(actionsAvailable is None):
+            actionValues = actionValueTable[state,:]
+            actionList = np.array(range(self.nActions))
+        else:
+            actionValues = actionValueTable[state, actionsAvailable]
+            actionList = np.array(actionsAvailable)
+        actionIdx = selectAction_greedy(actionValues)
+        return actionList[actionIdx]
+
+    def reset(self):
+        if(self.valueInit=="zeros"):
+            self.actionValueTable = np.zeros([self.n, self.nStates, self.nActions], dtype=float)
+        elif(self.valueInit=="random"):
+            self.actionValueTable = np.random.rand(self.n, self.nStates, self.nActions)
+        else:
+            sys.exit("ERROR: Maxmin Bandit Q-Learning: valueInit not recognized!")
+        self.policy = ActionValuePolicy(self.nStates, self.nActions,
+            actionSelectionMethod=self.actionSelectionMethod, epsilon=self.epsilon, tieBreakingMethod=self.tieBreakingMethod)

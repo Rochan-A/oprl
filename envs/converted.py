@@ -7,7 +7,7 @@ import gym_minigrid
 from gym_minigrid.wrappers import *
 
 from enum import IntEnum
-from .dynamics import EnvSpec
+from .mdp import EnvSpec
 
 
 # Map of object type to integers
@@ -171,7 +171,7 @@ class Converted(gym.Env):
 
         self.env = gym.make(env)
         self.seed = seed
-        self.env.seed = seed
+        self.env.seed(seed)
 
         # Action enumeration for this environment
         self.actions = Converted.Actions
@@ -235,7 +235,7 @@ class Converted(gym.Env):
         """Create the converted environment"""
         if self.map is None:
             # Use gridworld
-            self.env.seed = self.seed
+            self.env.seed(self.seed)
             if self.f == 0:
                 _ = self.env.reset()
                 self.f = 1
@@ -249,6 +249,8 @@ class Converted(gym.Env):
         else:
             # Use file map
             self.state = np.array(copy.deepcopy(self.map))
+
+        self.env.seed(self.seed)
 
         # Get all possible locations that can be occupied
         self.S = np.stack(np.where(self.state != OBJECT_TO_IDX["wall"])).T
