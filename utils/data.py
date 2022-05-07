@@ -24,7 +24,7 @@ import _pickle as cPickle
 import pathlib
 
 from policies import GreedyPolicy
-from moviepy.editor import ImageSequenceClip
+# from moviepy.editor import ImageSequenceClip
 
 
 def make_dirs(path):
@@ -193,6 +193,8 @@ def plot_Q_values(env, q_star, data, exp_name, fmt='png'):
                         c=clrs[0]
                     )
                     for i, key in enumerate(data):
+                        print(i, key)
+                        print(clrs[i+1])
                         plt.plot(
                             np.arange(data[key].shape[1]),
                             means[i][:, s, a],
@@ -245,6 +247,7 @@ def plot_V_values(env, star_values, data, exp_name, fmt='png'):
 
         # Diff between true value and calculated
         a = (values.mean(0) - V_star)/V_star
+
         grid = state_values_to_grid(a, env)
         save_matrix_as_image(
             grid,
