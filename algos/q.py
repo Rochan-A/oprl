@@ -55,8 +55,6 @@ def Q_learning(
     if use_buffer:
         mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
 
-    memory = RingBuffer(capacity=config.q_learning.buffer_size, dtype=(float, (4)) )
-
     for i in range(n):
         s = env.reset()
         done = False
@@ -130,13 +128,10 @@ def DoubleQ(
     minibatch_size = config.dq_learning.minibatch_size
 
     # Log Q value, cummulative reward, # of steps
-    Qlogger1 = np.zeros((n, 2, env.nS, env.nA,))
-    Qlogger2 = np.zeros((n, 2, env.nS, env.nA,))
+    Qlogger1 = np.zeros((n, env.nS, env.nA,))
+    Qlogger2 = np.zeros((n, env.nS, env.nA,))
     Envlogs = np.zeros((n,2))
     VisitLogger = np.zeros((n, env.nS, env.nA), dtype=np.int64)
-
-    Q = np.repeat( Q[np.newaxis, :, :], 2,  axis=0)
-    assert Q.shape == (2, env.nS, env.nA)
 
     terminal = env.final_state
     Q1 = Q
@@ -204,8 +199,8 @@ def DoubleQ(
 
             c_r += r
 
-        Qlogger1[i, 0, :, :] = Q[0, :, :]
-        Qlogger2[i, 1, :, :] = Q[1, :, :]
+        Qlogger1[i, :, :] = Q1[:, :]
+        Qlogger2[i, :, :] = Q2[:, :]
         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
 
     return Q1, Q2, Qlogger1, Qlogger2, Envlogs, VisitLogger

@@ -303,7 +303,8 @@ def plot_visits(visits, s_a, exp_name, fmt='png'):
     make_dirs(join(exp_name, 'visits'))
 
     labels = list(visits.keys())
-    for idx, visit in enumerate(visits.values()):
+    for _, key in enumerate(visits.keys()):
+        visit = visits[key]
         visit_mean = visit.mean(0, dtype=np.float64)
         visit_std = visit.std(0, ddof=1, dtype=np.float64)
         # clip = ImageSequenceClip(list(visit), fps=fps)
@@ -315,9 +316,9 @@ def plot_visits(visits, s_a, exp_name, fmt='png'):
             sum_ = np.sum(visit, axis=0)
             for act in range(4):
                 y = smooth(visit_mean[:, state, act], 10)
-                ax.plot(np.arange(0, visit.shape[0]), y, label=labels[act])
+                ax.plot(np.arange(0, visit.shape[1]), y, label=labels[act])
                 ax.fill_between(
-                    np.arange(0, visit.shape[0]),
+                    np.arange(0, visit.shape[1]),
                     y-(visit_std[:, state, act]*0.5),
                     y+(visit_std[:, state, act]*0.5),
                     alpha=0.1
@@ -328,7 +329,7 @@ def plot_visits(visits, s_a, exp_name, fmt='png'):
             ax.set_ylabel('Mean Count')
             plt.tight_layout()
             plt.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
-            plt.savefig(join(exp_name, 'visits', 's-{}.{}'.format(state, fmt)), format=fmt, bbox_inches='tight')
+            plt.savefig(join(exp_name, 'visits', '{}-s-{}.{}'.format(key, state, fmt)), format=fmt, bbox_inches='tight')
 
 
 def plot_bandit(bandit, exp_name, fmt='png'):

@@ -1,23 +1,23 @@
 # Perform plotting for experiments
 # algo options: ('val_iter', 'q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq2')
 
-perform: ['cum_r', 'bandit']
+perform: ['cum_r', 'bandit', 'visits']
 fmt: png # pdf/png
 
 # rewards plot
 cum_r:
-  algos: ['q', 'dq', 'mmbq']
+  algos: ['q', 'dq', 'mmbq', 'mmq']
   smooth: True
   std_factor: 0.5
 
 q_vals:
-  algos: ['val_iter', 'dq', 'mmbq']
+  algos: ['val_iter', 'dq', 'mmbq', 'mmq']
 
 v_vals:
-  algos: ['val_iter', 'dq', 'mmbq']
+  algos: ['val_iter', 'dq', 'mmbq', 'mmq']
 
 visits:
-  algos: ['dq', 'mmbq']
+  algos: ['dq', 'mmbq', 'mmq']
   s_a: [0, 1, 2, 3, 4]
 
 bandit:
