@@ -62,7 +62,7 @@ def load_experiments_and_env(path, algos, plots):
             join(path, 'store', 'Maxmin Bandit Q_estimator.pbz2')
         )
 
-    if 'mmbq' in algos and 'bandit' in plots:
+    if 'mmbqv2' in algos and 'bandit' in plots:
         load_data['bandit']['q']['Maxmin Bandit Q v2'] = decompress_pickle(
             join(path, 'store', 'Maxmin Bandit Q v2_bandit.pbz2')
         )
