@@ -56,7 +56,7 @@ def Q_learning(
 
     pi = EGPolicy(Q, epsilon)
 
-    memory = RingBuffer(capacity=config.q_learning.buffer_size, dtype=(float, (4)) )
+    memory = deque([], maxlen=config.q_learning.buffer_size)
 
     for i in range(n):
         s = env.reset()
@@ -69,12 +69,14 @@ def Q_learning(
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
 
-            memory.extendleft( np.array([[s, a, r, s1]]) )
-            sample_idx = np.random.choice(np.arange(len(memory)), config.q_learning.replay_size)
-            update_trans = memory[sample_idx]
-            s_, a_, r_, s1_ = update_trans[:, 0], update_trans[:, 1], update_trans[:, 2], update_trans[:, 3]
+            memory.append([s, a, r, s1])
+            for j in range(config.q_learning.replay_size):
+                sample_idx = np.random.choice(np.arange(len(memory)))
+                update_trans = memory[sample_idx]
+                s_, a_, r_, s1_ = update_trans[0], update_trans[1], update_trans[2], update_trans[3]
 
-            Q[ np.int64(s_), np.int64(a_) ] += alpha * (r_ + (gamma * np.max(Q[ np.int64(s1_), :])) - Q[ np.int64(s_), np.int64(a_) ])
+                Q[ np.int64(s_), np.int64(a_) ] += alpha * (r_ + (gamma * np.max(Q[ np.int64(s1_), :])) - Q[ np.int64(s_), np.int64(a_) ])
+
             s = s1
 
             pi.update(Q, epsilon)
@@ -150,7 +152,7 @@ def DoubleQ(
         pi = EGPolicy(Q[1, :, :], epsilon)
         A = False
 
-    memory = RingBuffer(capacity=config.dq_learning.buffer_size, dtype=(float, (4)) )
+    memory = deque([], maxlen=config.dq_learning.buffer_size)
 
     for i in range(n):
         s = env.reset()
@@ -163,20 +165,22 @@ def DoubleQ(
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
 
-            memory.extendleft( np.array([[s, a, r, s1]]) )
-            sample_idx = np.random.choice(np.arange(len(memory)), config.dq_learning.replay_size )
-            update_trans = memory[sample_idx]
-            s_, a_, r_, s1_ = update_trans[:, 0], update_trans[:, 1], update_trans[:, 2], update_trans[:, 3]
+            memory.append([s, a, r, s1])
 
-            # print( np.int64(s_), np.int64(a_), np.int64(r_), np.int64(s1_), np.argmax(Q[0, np.int64(s1_), :]), Q.shape)
-            if A:
-                Q[0, np.int64(s_), np.int64(a_)] += alpha * (
-                    r_ + gamma * Q[1, np.int64(s1_), np.argmax(Q[0, np.int64(s1_), :], axis=-1)] - Q[0, np.int64(s_), np.int64(a_)]
-                )
-            else:
-                Q[1, np.int64(s_), np.int64(a_)] += alpha * (
-                    r_ + gamma * Q[0, np.int64(s1_), np.argmax(Q[1, np.int64(s1_), :], axis=-1)] - Q[1, np.int64(s_), np.int64(a_) ]
-                )
+            for j in range(config.dq_learning.replay_size):
+                sample_idx = np.random.choice(np.arange(len(memory)) )
+                update_trans = memory[sample_idx]
+                s_, a_, r_, s1_ = update_trans[0], update_trans[1], update_trans[2], update_trans[3]
+
+                # print( np.int64(s_), np.int64(a_), np.int64(r_), np.int64(s1_), np.argmax(Q[0, np.int64(s1_), :]), Q.shape)
+                if A:
+                    Q[0, np.int64(s_), np.int64(a_)] += alpha * (
+                        r_ + gamma * Q[1, np.int64(s1_), np.argmax(Q[0, np.int64(s1_), :], axis=-1)] - Q[0, np.int64(s_), np.int64(a_)]
+                    )
+                else:
+                    Q[1, np.int64(s_), np.int64(a_)] += alpha * (
+                        r_ + gamma * Q[0, np.int64(s1_), np.argmax(Q[1, np.int64(s1_), :], axis=-1)] - Q[1, np.int64(s_), np.int64(a_) ]
+                    )
 
             s = s1
 
@@ -252,7 +256,7 @@ def MaxminQ(env: gym.Env, config, estimators, Q_init: np.array,):
     epsilon = config.mmq_learning.epsilon
     pi = EGPolicy(Q_min, epsilon)
 
-    memory = RingBuffer(capacity=config.mmq_learning.buffer_size, dtype=(float, (4)))
+    memory = deque([], maxlen=config.mmq_learning.buffer_size)
 
     for i in range( config.mmq_learning.steps ):
         s = env.reset()
@@ -264,12 +268,13 @@ def MaxminQ(env: gym.Env, config, estimators, Q_init: np.array,):
 
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
-            memory.extendleft( np.array([[s, a, r, s1]]) )
+            memory.append([s, a, r, s1])
 
-            update_ind = np.random.choice( estimators, config.mmq_learning.replay_size )
-            update_trans = memory[np.random.choice( len(memory), config.mmq_learning.replay_size ), :]
-            a_p = np.argmax(Q_min[np.int64(update_trans[:, 3]), :], axis=-1)
-            MMQ[ update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] +=  config.mmq_learning.alpha * (update_trans[:, 2] + config.gamma * Q_min[np.int64(update_trans[:, 3]), a_p] - MMQ[update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] )
+            for j in range(config.mmq_learning.replay_size):
+                update_ind = np.random.choice(estimators)
+                update_trans = random.sample(memory, 1)[0]
+                a_p = np.argmax(Q_min[update_trans[3], :])
+                MMQ[update_ind, update_trans[0], update_trans[1]] +=  config.mmq_learning.alpha * (update_trans[2] + config.gamma * Q_min[update_trans[3], a_p] - MMQ[update_ind, update_trans[0], update_trans[1]] )
 
             s = s1
 
@@ -317,7 +322,8 @@ def MaxminBanditQ(env: gym.Env, config, Q_init: np.array):
     epsilon = config.mmbq_learning.epsilon
     pi = EGPolicy(Q_min, epsilon)
 
-    memory = RingBuffer(capacity=config.mmbq_learning.buffer_size, dtype=(float, (4)))
+    # memory = RingBuffer(capacity=config.mmbq_learning.buffer_size, dtype=(float, (4)))
+    memory = deque([], maxlen = config.mmbq_learning.buffer_size)
     c_r_memory = deque([], maxlen = config.mmbq_learning.cum_len + 1)
 
     for i in range( config.mmbq_learning.steps ):
@@ -327,12 +333,20 @@ def MaxminBanditQ(env: gym.Env, config, Q_init: np.array):
         while not done:
             a = pi.action(s)
             s1, r, done, _ = env.step(a)
-            memory.extendleft( np.array([[s, a, r, s1]]) )
+            # memory.extendleft( np.array([[s, a, r, s1]]) )
+            memory.append([s, a, r, s1])
 
-            update_ind = np.random.choice( config.mmbq_learning.max_estimators, config.mmbq_learning.replay_size )
-            update_trans = memory[np.random.choice( len(memory), config.mmbq_learning.replay_size ), :]
-            a_p = np.argmax(Q_min[np.int64(update_trans[:, 3]), :], axis=-1)
-            MMBQ[ update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] +=  config.mmbq_learning.alpha * (update_trans[:, 2] + config.gamma * Q_min[np.int64(update_trans[:, 3]), a_p] - MMBQ[update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] )
+
+            # update_ind = np.random.choice( config.mmbq_learning.max_estimators, config.mmbq_learning.replay_size )
+            # update_trans = memory[np.random.choice( len(memory), config.mmbq_learning.replay_size ), :]
+            # a_p = np.argmax(Q_min[np.int64(update_trans[:, 3]), :], axis=-1)
+            # MMBQ[ update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] +=  config.mmbq_learning.alpha * (update_trans[:, 2] + config.gamma * Q_min[np.int64(update_trans[:, 3]), a_p] - MMBQ[update_ind[:], np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1]) ] )
+
+            for j in range(config.mmbq_learning.replay_size):
+                update_ind = np.random.choice( config.mmbq_learning.max_estimators )
+                update_trans = random.sample(memory, 1)[0]
+                a_p = np.argmax(Q_min[update_trans[3], :])
+                MMBQ[update_ind, update_trans[0], update_trans[1]] +=  config.mmbq_learning.alpha * (update_trans[2] + config.gamma * Q_min[update_trans[3], a_p] - MMBQ[update_ind, update_trans[0], update_trans[1]] )
 
             s = s1
 

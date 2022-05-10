@@ -5,3 +5,5 @@
 ./state-action
 output/*
 results/*
+code/*
+code.zip

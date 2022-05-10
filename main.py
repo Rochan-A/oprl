@@ -112,7 +112,7 @@ if __name__ == "__main__":
             env, V, config.value_iteration_theta, config.gamma
         )
 
-
+    print(Q)
     # Vanilla Q-learning
     print("Vanilla Q Learning")
     VQ_Logger = np.empty((config.exp.repeat, config.q_learning.steps, env.nS, env.nA))
@@ -133,7 +133,8 @@ if __name__ == "__main__":
     loggers['Vanilla Q'] = VQ_Logger
     visits['Vanilla Q'] = VQ_Visits
 
-
+    print(Q)
+    exit(0)
     # Double Q-learning
     print("Double Q Learning")
     DQ_Logger = np.empty((config.exp.repeat, config.q_learning.steps, 2, env.nS, env.nA))
@@ -176,20 +177,20 @@ if __name__ == "__main__":
 
 
     # Perform Maxmin for 'n' different estimator counts
-    for estimators in config.mmq_learning.estimator_pools:
-        print("Maxmin Q learning, n = {}".format(estimators))
-        MMQ_Logger = np.empty(( config.exp.repeat, config.mmq_learning.steps, estimators, env.nS, env.nA))
-        MMQ_EnvLogger = np.empty(( config.exp.repeat, config.mmq_learning.steps, 2))
-        for rep in tqdm(range(config.exp.repeat)):
-            _, MMQ_Logger[rep, :, :, :, :], MMQ_EnvLogger[rep, ::], MMQ_Visits = MaxminQ(
-                env,
-                config,
-                estimators,
-                copy.deepcopy(Q)
-            )
-        env_loggers['Maxmin Q n_{}'.format(estimators)] = MMQ_EnvLogger
-        loggers['Maxmin Q n_{}'.format(estimators)] = MMQ_Logger[:, :, 0, ::]
-        visits['Maxmin Q n_{}'.format(estimators)] = MMQ_Visits
+    # for estimators in config.mmq_learning.estimator_pools:
+    #     print("Maxmin Q learning, n = {}".format(estimators))
+    #     MMQ_Logger = np.empty(( config.exp.repeat, config.mmq_learning.steps, estimators, env.nS, env.nA))
+    #     MMQ_EnvLogger = np.empty(( config.exp.repeat, config.mmq_learning.steps, 2))
+    #     for rep in tqdm(range(config.exp.repeat)):
+    #         _, MMQ_Logger[rep, :, :, :, :], MMQ_EnvLogger[rep, ::], MMQ_Visits = MaxminQ(
+    #             env,
+    #             config,
+    #             estimators,
+    #             copy.deepcopy(Q)
+    #         )
+    #     env_loggers['Maxmin Q n_{}'.format(estimators)] = MMQ_EnvLogger
+    #     loggers['Maxmin Q n_{}'.format(estimators)] = MMQ_Logger[:, :, 0, ::]
+    #     visits['Maxmin Q n_{}'.format(estimators)] = MMQ_Visits
 
 
     # print("Mean-Var Q Learning")
