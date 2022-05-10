@@ -65,6 +65,7 @@ if __name__ == "__main__":
 
     if config.model == "gym":
         env = gym.make(config.env)
+        env = NoisyReward(env, config.std)
         env.seed(args.seed)
     else:
         assert False, 'Invalid env model args...'

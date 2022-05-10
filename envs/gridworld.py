@@ -183,6 +183,26 @@ class DelayedReward(gym.core.Wrapper):
         return self.env.reset(**kwargs)
 
 
+class NoisyReward(gym.core.Wrapper):
+    """
+    Wrapper which adds gaussian noise to the reward at each step.
+    """
+
+    def __init__(self, env, std=1):
+        super().__init__(env)
+        self.std = std
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+
+        reward += np.random.normal(0, self.std)
+
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+
 class MapsEnvModel(gym.core.Wrapper):
     """Env Wrapper to query model ie. p(s, a, s')"""
 

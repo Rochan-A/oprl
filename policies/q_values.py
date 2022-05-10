@@ -1,6 +1,7 @@
 from base64 import encode
 import numpy as np
 from .tilecoding import TileCoder
+import math
 
 class BaseExploration(object):
   # Base class for agent exploration strategies.
@@ -47,6 +48,35 @@ class LinearEpsilonGreedy(BaseExploration):
 
   def select_action(self, q_values, step_count):
     self.epsilon = self.bound(self.start + step_count * self.inc, self.end)
+    if np.random.rand() < self.epsilon or step_count <= self.exploration_steps:
+      action = np.random.randint(0, len(q_values))
+    else:
+      if np.sum(np.where(q_values == q_values.max(), 1, 0)) == 1:
+        action = np.argmax(q_values)
+      # If we don't, randomly choose one of the maximum values
+      else:
+        action = np.random.choice(np.flatnonzero(q_values == q_values.max()))
+    return action
+
+
+class ExponentialEpsilonIntervalGreedy(BaseExploration):
+  '''
+  Implementation of exponential decay epsilon greedy exploration strategy:
+    epsilon = bound(epsilon_end, epsilon_start * (decay ** step//interval))
+  '''
+  def __init__(self, exploration_steps, epsilon):
+    super().__init__(exploration_steps, epsilon)
+    self.decay = epsilon['decay']
+    self.start = epsilon['start']
+    self.interval = epsilon['steps']
+    self.end = epsilon['end']
+    if epsilon['end'] > epsilon['start']:
+      self.bound = min
+    else:
+      self.bound = max
+
+  def select_action(self, q_values, step_count):
+    self.epsilon = self.bound(self.start * math.pow(self.decay, step_count//self.interval), self.end)
     if np.random.rand() < self.epsilon or step_count <= self.exploration_steps:
       action = np.random.randint(0, len(q_values))
     else:
@@ -149,6 +179,8 @@ class EGPolicy(Policy):
             self.epsilon = LinearEpsilonGreedy(exploration_steps, epsilon)
         elif epsilon['strat'] == 'exp':
             self.epsilon = ExponentialEpsilonGreedy(exploration_steps, epsilon)
+        elif epsilon['strat'] == 'exp_interval':
+            self.epsilon = ExponentialEpsilonIntervalGreedy(exploration_steps, epsilon)
         else:
             assert False, 'Invalid epsilon strategy...'
 
@@ -184,47 +216,28 @@ class QLearningAgent:
             self.epsilon = LinearEpsilonGreedy(exploration_steps, epsilon)
         elif epsilon['strat'] == 'exp':
             self.epsilon = ExponentialEpsilonGreedy(exploration_steps, epsilon)
+        elif epsilon['strat'] == 'exp_interval':
+            self.epsilon = ExponentialEpsilonIntervalGreedy(exploration_steps, epsilon)
         else:
             assert False, 'Invalid epsilon strategy...'
 
-    # def update(self, state, action, delta):
-    #     self.tq.update(state, action, delta)
-
     def action(self, state, step_count):
-        Q_s = np.sum(self.w[self.tq[state]], axis=0)/state.shape[-1]
+        Q_s = np.sum(self.w[self.tq[state]], axis=0)
         # Pick the best action from Q table
         return self.epsilon.select_action(Q_s, step_count)
 
-    # def S(self, state):
-    #     state = np.array([self.tq[s] for s in state])
-    #     Q_s = np.sum(self.w[state], axis=1)/5
-    #     return Q_s
 
-    # def SA(self, state, action):
-    #     state = np.array([self.tq[s] for s in state])
-    #     Q_ret = np.zeros((state.shape[0]))
-    #     idx = np.arange(len(action))
-    #     # for idx, act in enumerate(action):
-    #     Q_ret[idx] = np.sum(self.w[state], axis=1)[idx, action]/5
-    #     return Q_ret
-
-    # def update(self, state, action, delta):
-    #     for idx, act in enumerate(action):
-    #         s = self.tq[state[idx]]
-    #         self.w[s, act] += delta[idx]
-
-
-def update(Q, state, action, delta, T):
+def update(Q, state, action, delta, T, n_tiles):
     w = Q
     for idx, act in enumerate(action):
         s = T[state[idx]]
-        w[s, act] += delta[idx]
+        w[s, act] += delta[idx]/n_tiles
     return w
 
 
 def S(state, Q, T):
     state = np.array([T[s] for s in state])
-    Q_s = np.sum(Q[state], axis=1)/state.shape[-1]
+    Q_s = np.sum(Q[state], axis=1)
     return Q_s
 
 
@@ -232,5 +245,5 @@ def SA(state, action, Q, T):
     state = np.array([T[s] for s in state])
     Q_ret = np.zeros((state.shape[0]))
     idx = np.arange(len(action))
-    Q_ret[idx] = np.sum(Q[state], axis=1)[idx, action]/state.shape[-1]
+    Q_ret[idx] = np.sum(Q[state], axis=1)[idx, action]
     return Q_ret

@@ -72,7 +72,6 @@ def Q_learning(
                     np.arange(len(mem)),
                     min(minibatch_size, len(mem))
                 )
-                print(len(mem))
                 update_trans = mem[sample_idx]
                 s_, a_, r_, s1_ = \
                     np.int64(update_trans[:, 0]), \
@@ -366,7 +365,7 @@ def MaxminBanditQ(
     mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
     c_r_memory = deque([], maxlen = bandit_r_buf_len + 1)
 
-    for i in range( n ):
+    for i in range(n):
         s = env.reset()
         done = False
         c_r = 0

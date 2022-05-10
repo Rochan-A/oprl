@@ -1,11 +1,12 @@
-model: filev2 # one_state, five_state, gridworld, file, filev2
-# if using gridworld, specify the gridworld env name
-# eg. MiniGrid-SimpleCrossingS11N5-v0 MiniGrid-Empty-8x8-v0
-# MiniGrid-LavaCrossingS11N5-v0 MiniGrid-LavaGapS7-v0 MiniGrid-FourRooms-v0
-env: MiniGrid-Empty-8x8-v0
-map_path: ./maps/mdp.txt
-gamma: 0.9
+model: gym
+env: MountainCar-v0
+gamma: 1
 seed: 0
+std: 50    # Noise to add to reward at each step
+
+tc:
+  n_bins: 8
+  num_tiles: 8
 
 env_mods:
   # (num of timesteps after reward is actually returned, except for terminal state)
@@ -15,22 +16,19 @@ env_mods:
   distance_bonus: False
 
 init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
-  Q: zero
-  V: zero
+  Q: rand
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-  repeat: 100
-  steps: 400 # episodes
+  repeat: 10
+  steps: 4000 # episodes
   exploration_steps: 0 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
 
-# Perform select experiments ('val_iter', 'q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq_v2')
-perform: ['val_iter', 'mmbq', 'q', 'dq', 'mmq'] # 'pq', 'mmbq_v2'
-
-value_iteration_theta: 0.0001
+# Perform select experiments ('q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq_v2')
+perform: ['q', 'dq', 'mmbq', 'mmq']
 
 q_learning:
-  alpha: 0.05
+  alpha: 0.01
   epsilon:
     strat: exp_interval  # Espilon decay to use (const/exp/linear)
     start: 0.1    # Starting value (for const, this value is used at every step)
@@ -42,7 +40,7 @@ q_learning:
   minibatch_size: 10
 
 dq_learning:
-  alpha: 0.05
+  alpha: 0.01
   epsilon:
     strat: exp_interval
     start: 0.1
@@ -54,7 +52,7 @@ dq_learning:
   minibatch_size: 10
 
 pessimistic_q_learning:
-  alpha: 0.05
+  alpha: 0.01
   epsilon:
     strat: exp_interval
     start: 0.1
@@ -67,7 +65,7 @@ pessimistic_q_learning:
   minibatch_size: 10
 
 mmq_learning:
-  alpha: 0.05
+  alpha: 0.01
   epsilon:
     strat: exp_interval
     start: 0.1
@@ -79,7 +77,7 @@ mmq_learning:
   minibatch_size: 10
 
 mmbq_learning:
-  alpha: 0.05
+  alpha: 0.01
   epsilon:
     strat: exp_interval
     start: 0.1

@@ -3,7 +3,7 @@ import numpy as np
 from os.path import join
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set_style('darkgrid')
+# sns.set_style('darkgrid')
 
 SMALL_SIZE = 8
 MEDIUM_SIZE = 10
@@ -14,7 +14,7 @@ plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
 plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
 plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
+plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 plt.rc('axes', titlesize=BIGGER_SIZE)
 
@@ -139,33 +139,34 @@ def plot_mean_cum_rewards(data, exp_name, do_smooth=False, std_factor=0.5, fmt='
     for val in data.values():
         # reward
         if do_smooth:
-            means.append(smooth_exp(val[:, :, 0].mean(0, dtype=np.float64), 0.95))
+            means.append(smooth_exp(val[:, :, 0].mean(0, dtype=np.float64), 0.9))
         else:
             means.append(val[:, :, 0].mean(0, dtype=np.float64))
         stds.append(val[:, :, 0].std(0, ddof=1, dtype=np.float64))
 
     fig, ax = plt.subplots(dpi=200)
-    clrs = sns.color_palette("husl", len(data))
-    with sns.axes_style("darkgrid"):
-        for i, key in enumerate(data):
+    # clrs = sns.color_palette("husl", len(data))
+    #with sns.axes_style("darkgrid"):
+    for i, key in enumerate(data):
+        if key in ['Vanilla Q', 'Double Q', 'Maxmin Bandit Q', 'Maxmin Q n 6', 'Maxmin Q n 4', 'Maxmin Q n 6']:
             ax.plot(np.arange(
                 data[key].shape[-2]),
                 means[i],
                 label=labels[i],
-                c=clrs[i]
+                # c=clrs[i]
             )
             ax.fill_between(
                 np.arange(data[key].shape[-2]),
                 means[i]-(stds[i]*std_factor),
                 means[i]+(stds[i]*std_factor),
-                alpha=0.3,
-                facecolor=clrs[i]
+                alpha=0.1,
+                # facecolor=clrs[i]
             )
-        ax.set_title("Mean Cummulative Reward")
-        ax.set_xlabel('Episode')
+        # ax.set_title("Mean Cummulative Reward")
+        ax.set_xlabel('Steps')
         ax.set_ylabel('Reward')
         plt.tight_layout()
-        plt.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
+        plt.legend()#bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
         plt.savefig(join(exp_name, 'reward_plot.{}'.format(fmt)), format=fmt, bbox_inches='tight')
 
 
@@ -193,8 +194,6 @@ def plot_Q_values(env, q_star, data, exp_name, fmt='png'):
                         c=clrs[0]
                     )
                     for i, key in enumerate(data):
-                        print(i, key)
-                        print(clrs[i+1])
                         plt.plot(
                             np.arange(data[key].shape[1]),
                             means[i][:, s, a],
@@ -352,11 +351,11 @@ def plot_bandit(bandit, exp_name, fmt='png'):
                 alpha=0.1
             )
 
-        ax.set_title("Bandit Q Value ({})".format(key))
+        # ax.set_title("Bandit Q Value ({})".format(key))
         ax.set_xlabel('Episode')
-        ax.set_ylabel('Mean Q Value')
+        ax.set_ylabel('Q Value')
         plt.tight_layout()
-        plt.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
+        plt.legend()#bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
         plt.savefig(join(exp_name, 'bandit', '{}-q_val.{}'.format(key, fmt)), format=fmt, bbox_inches='tight')
 
     # Plot estimator count selection
@@ -366,9 +365,9 @@ def plot_bandit(bandit, exp_name, fmt='png'):
 
         fig, ax = plt.subplots(dpi=200)
         ax.scatter(np.arange(0, len(est_selected)), est_selected, marker='|', s=200)
-        ax.set_title("Bandit Selected Estimators ({})".format(key))
-        ax.set_xlabel('Episode')
-        ax.set_ylabel('Estimator Count')
+        # ax.set_title("Bandit Selected Estimators ({})".format(key))
+        ax.set_xlabel('Episode') # **** change to 'Steps' for Mountain Car ****
+        ax.set_ylabel('Estimator')
         plt.tight_layout()
         # plt.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
         plt.savefig(join(exp_name, 'bandit', '{}-est.{}'.format(key, fmt)), format=fmt, bbox_inches='tight')

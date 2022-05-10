@@ -44,6 +44,7 @@ def Q_learning(
     use_buffer = config.q_learning.use_buffer
     buffer_size = config.q_learning.buffer_size
     minibatch_size = config.q_learning.minibatch_size
+    n_tiles = config.tc.num_tiles
 
     # Log cummulative reward, # of steps
     Envlogs = np.zeros((n, 2))
@@ -86,7 +87,7 @@ def Q_learning(
 
             v = S(s1_, Q, T)
             delta = alpha * (r_ + (gamma * np.max(v, axis=-1)) - SA(s_, a_, Q, T))
-            Q = update(Q, s_, a_, delta, T)
+            Q = update(Q, s_, a_, delta, T, n_tiles)
             pi.w = Q
 
             s = s1
@@ -94,8 +95,8 @@ def Q_learning(
             c_r += r
             step_count += 1
 
-        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
-
+        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
+        # print('i: {}, s: {}, c: {}'.format(i, step_count, c_r))
     return Q, Envlogs
 
 
@@ -131,6 +132,7 @@ def DoubleQ(
     use_buffer = config.dq_learning.use_buffer
     buffer_size = config.dq_learning.buffer_size
     minibatch_size = config.dq_learning.minibatch_size
+    n_tiles = config.tc.num_tiles
 
     Envlogs = np.zeros((n,2))
 
@@ -194,18 +196,18 @@ def DoubleQ(
             s = s1
 
             if np.random.random() < 0.5:
-                Q1 = update(Q1, s_, a_, delta, T)
+                Q1 = update(Q1, s_, a_, delta, T, n_tiles)
                 pi.w = Q1
                 A = True
             else:
-                Q1 = update(Q2, s_, a_, delta, T)
+                Q1 = update(Q2, s_, a_, delta, T, n_tiles)
                 pi.w = Q2
                 A = False
 
             c_r += r
             step_count += 1
 
-        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
+        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
 
     return Q1, Q2, Envlogs 
 
@@ -215,8 +217,8 @@ def get_min_q(Q: np.array, max_estimators, active_estimators=-1):
     if active_estimators == -1:
         return np.amin(Q[:, :, :], axis=0).squeeze()
     else:
-        ind = np.random.choice(max_estimators, active_estimators)
-        return np.amin(Q[ind, :, :], axis=0).squeeze()
+        ind = np.random.choice(np.arange(max_estimators), active_estimators)
+        return np.amin(Q[ind, :, :], axis=0)
 
 
 def MaxminQ(
@@ -250,6 +252,7 @@ def MaxminQ(
     epsilon = config.mmq_learning.epsilon
     buffer_size = config.mmq_learning.buffer_size
     minibatch_size = config.mmq_learning.minibatch_size
+    n_tiles = config.tc.num_tiles
 
     Envlogs = np.zeros((n, 2))
 
@@ -293,15 +296,14 @@ def MaxminQ(
 
             s = s1
 
-            MMQ[update_ind] = update(MMQ[update_ind], s_, a_, delta, T)
+            MMQ[update_ind] = update(MMQ[update_ind], s_, a_, delta, T, n_tiles)
             Q_min = get_min_q(MMQ, None)
             pi.w = Q_min
 
             c_r += r
             step_count += 1
-            print(step_count)
-        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
-        print(i)
+
+        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
     return Q_min, Envlogs
 
 
@@ -342,6 +344,7 @@ def MaxminBanditQ(
     reward_buffer = config.mmbq_learning.cum_len
     minibatch_size = config.mmbq_learning.minibatch_size
     bandit_lr = config.mmbq_learning.bandit_lr
+    n_tiles = config.tc.num_tiles
 
     Envlogs = np.empty((n , 2))
     Bandit_logger = np.zeros((n, max_estimators, 2))
@@ -390,9 +393,8 @@ def MaxminBanditQ(
                 mem[2][sample_idx], mem[3][sample_idx]
 
             a_p = np.argmax(S(s1_, Q_min, T), axis=-1)
-            delta = alpha * (r_ + gamma * SA(s1_, Q_min, a_p, T) - SA(s_, a_, MMBQ[update_ind], T))
-
-            MMBQ[update_ind] = update(MMBQ[update_ind], s_, a_, delta, T)
+            delta = alpha * (r_ + gamma * SA(s1_, a_p, Q_min, T) - SA(s_, a_, MMBQ[update_ind], T))
+            MMBQ[update_ind] = update(MMBQ[update_ind], s_, a_, delta, T, n_tiles)
 
             Q_min = get_min_q(MMBQ, max_estimators, active_estimators)
             pi.w = Q_min
@@ -404,6 +406,7 @@ def MaxminBanditQ(
         c_r_memory.append([c_r, active_estimators])
         if len(c_r_memory) > reward_buffer:
             new_reward = (np.sum( list(c_r_memory), axis=0 )[0] - c_r_memory[0][0]) * 1.0 / reward_buffer
+            new_reward /= 200.
             num_active_estimators = c_r_memory[0][1] - 1
             q_est[num_active_estimators] = q_est[num_active_estimators] + bandit_lr * (new_reward - q_est[num_active_estimators])
             num_a_est[ num_active_estimators ] += 1
@@ -412,8 +415,8 @@ def MaxminBanditQ(
         Bandit_logger[i, :, 0] = q_est
         Bandit_logger[i, :, 1] = num_a_est
 
-        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
-
+        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
+        # print('i: {}, s: {}, c: {}, q_est: {}, num: {}'.format(i, step_count, c_r, q_est, 2*np.sqrt(np.log(i+2)/(num_a_est + 1e-8))))
         active_estimators = get_active_estimators(q_est, num_a_est, i+2)
 
     return Q_min, Envlogs, Bandit_logger, Estimator_logger
@@ -452,6 +455,7 @@ def MaxminBanditQ_v2(
     reward_buffer = config.mmbq_learning.cum_len
     minibatch_size = config.mmbq_learning.minibatch_size
     bandit_lr = config.mmbq_learning.bandit_lr
+    n_tiles = config.tc.num_tiles
 
     Envlogs = np.empty((n , 2))
     Bandit_logger = np.zeros((n, max_estimators, 2))
@@ -485,8 +489,6 @@ def MaxminBanditQ_v2(
 
             s1, r, done, _ = env.step(a)
 
-            mem.extendleft(np.array([[s, a, r, s1]]))
-
             update_ind = np.random.choice(max_estimators)
             mem[0].extendleft(np.array([s], dtype=np.float64))
             mem[1].extendleft(np.array([a], dtype=np.float64))
@@ -501,9 +503,9 @@ def MaxminBanditQ_v2(
                 mem[2][sample_idx], mem[3][sample_idx]
 
             a_p = np.argmax(S(s1_, Q_min, T), axis=-1)
-            delta = alpha * (r_ + gamma * SA(s1_, a_p, Q_min) - SA(s_, a_, MMBQ[update_ind], T))
+            delta = alpha * (r_ + gamma * SA(s1_, a_p, Q_min, T) - SA(s_, a_, MMBQ[update_ind], T))
+            MMBQ[update_ind] = update(MMBQ[update_ind], s_, a_, delta, T, n_tiles)
 
-            MMBQ[update_ind] = update(MMBQ[update_ind], s_, a_, delta, T)
             Q_min = get_min_q(MMBQ, max_estimators, active_estimators)
             pi.w = (Q_min)
 
@@ -515,6 +517,7 @@ def MaxminBanditQ_v2(
         c_r_memory[active_estimators].append([c_r, active_estimators])
         if len(c_r_memory[active_estimators]) > reward_buffer:
             new_reward = (np.sum( list(c_r_memory[active_estimators]), axis=0 )[0] - c_r_memory[active_estimators][0][0]) * 1.0 / reward_buffer
+            new_reward /= 200.
             num_active_estimators = c_r_memory[active_estimators][0][1] - 1
             q_est[num_active_estimators] = q_est[num_active_estimators] + bandit_lr * (new_reward - q_est[num_active_estimators])
             num_a_est[ num_active_estimators ] += 1
@@ -523,143 +526,8 @@ def MaxminBanditQ_v2(
         Bandit_logger[i, :, 0] = q_est
         Bandit_logger[i, :, 1] = num_a_est
 
-        Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
-
+        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
+        # print('i: {}, s: {}, c: {}, q_est: {}, num: {}'.format(i, step_count, c_r, q_est, 10*np.sqrt(np.log(i+2)/(num_a_est + 1e-8))))
         active_estimators = get_active_estimators(q_est, num_a_est, i+2)
 
     return Q_min, Envlogs, Bandit_logger, Estimator_logger
-
-
-##########################################################
-# BOTH OF THE BELOW ALGOS DONT WORK FOR CONTINUOUS STATE #
-##########################################################
-
-def PessimisticQ(
-    env: gym.Env,
-    config: EasyDict,
-    PQ: np.array,
-    T: TileCoder
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    input:
-        env: environment
-        config: config
-        PQ: initial Q function
-    ret:
-        Q: $q_star$ function; numpy array shape of [nS,nA]
-        Qlogs: Q logs
-        envlogs: (n, #s) logs
-        visits: (n, #s, #a)
-    """
-
-    #####################
-    # Pessimistic Q learning (ref. https://arxiv.org/pdf/2202.13890.pdf)
-    #####################
-
-    n = config.exp.steps
-    exploration_steps = config.exp.exploration_steps
-    alpha = config.pessimistic_q_learning.alpha
-    gamma = config.gamma
-    epsilon = config.pessimistic_q_learning.epsilon
-    pessimism_coeff = config.pessimistic_q_learning.pessimism_coeff
-
-    Envlogs = np.zeros((n,2))
-
-    pi = QLearningAgent(T, PQ, epsilon, exploration_steps)
-    visit = np.zeros(PQ.shape) + 1
-
-    for i in range(n):
-        s = env.reset()
-        done = False
-        c_r = 0
-        step_count = 0
-        while not done:
-            a = pi.action(s, i)
-
-            s1, r, done, _ = env.step(a)
-
-            visit[s, a] += 1
-            PQ[s, a] += alpha * (
-                r
-                + gamma * np.max(PQ[s1, :])
-                - PQ[s, a]
-                - (pessimism_coeff / visit[s, a])
-            )
-            s = s1
-            pi.update(PQ)
-
-            c_r += r
-            step_count += 1
-
-        Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
-
-    return PQ, np.int64(Envlogs)
-
-
-def MeanVarianceQ(
-    env: gym.Env,
-    config: EasyDict,
-    MVQ: np.array,
-    T: TileCoder
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    input:
-        env: environment
-        config: config
-        Q: initial Q function
-    ret:
-        Q: q_star function; numpy array shape of [nS,nA]
-        Qlogs: Q logs
-        envlogs: (n, #s) logs
-        visits: (n, #s, #a)
-    """
-
-    #####################
-    # Keep track of mean and variance rewards 
-    #####################
-
-    n = config.exp.steps
-    exploration_steps = config.exp.exploration_steps
-    alpha = config.meanvar_q_learning.alpha
-    gamma = config.gamma
-    epsilon = config.meanvar_q_learning.epsilon
-    coeff = config.meanvar_q_learning.coeff
-
-    # Log Q value, cummulative reward, # of steps
-    # Qlogger = np.zeros((n, env.nS, env.nA,))
-    Envlogs = np.zeros((n,2))
-    # VisitLogger = np.zeros((n, env.nS, env.nA), dtype=np.int64)
-
-    pi = QLearningAgent(MVQ, epsilon, exploration_steps)
-
-    # track mean and variance of reward
-    rs = [[RunningStats(20) for i in range(env.nA)] for k in range(env.nS)] # window size
-
-    for i in range(n):
-        s = env.reset()
-        done = False
-        c_r = 0
-        while not done:
-            a = pi.action(s)
-
-            # VisitLogger[i, s, a] += 1
-
-            s1, r, done, _ = env.step(a)
-
-            rs[s][a].push(r)
-
-            MVQ[s, a] += alpha * (
-                r
-                + gamma * np.max(MVQ[s1, :])
-                - MVQ[s, a]
-                - (0.1 * rs[s][a].n * rs[s][a].get_var())
-            )
-            s = s1
-
-            c_r += r
-
-        # Qlogger[i, ::] = MVQ
-        Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
-
-    del rs
-    return MVQ, Envlogs #, VisitLogger

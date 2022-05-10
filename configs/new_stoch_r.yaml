@@ -3,7 +3,7 @@ model: filev2 # one_state, five_state, gridworld, file, filev2
 # eg. MiniGrid-SimpleCrossingS11N5-v0 MiniGrid-Empty-8x8-v0
 # MiniGrid-LavaCrossingS11N5-v0 MiniGrid-LavaGapS7-v0 MiniGrid-FourRooms-v0
 env: MiniGrid-Empty-8x8-v0
-map_path: ./maps/mdp.txt
+map_path: ./maps/new_stoch_r.txt
 gamma: 0.9
 seed: 0
 
@@ -15,17 +15,17 @@ env_mods:
   distance_bonus: False
 
 init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
-  Q: zero
-  V: zero
+  Q: rand
+  V: rand
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-  repeat: 100
-  steps: 400 # episodes
-  exploration_steps: 0 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
+  repeat: 20
+  steps: 10000 # episodes
+  exploration_steps: 40 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
 
 # Perform select experiments ('val_iter', 'q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq_v2')
-perform: ['val_iter', 'mmbq', 'q', 'dq', 'mmq'] # 'pq', 'mmbq_v2'
+perform: ['val_iter', 'q', 'dq', 'pq', 'mmq', 'mmbq', 'mmbq_v2'] # 'val_iter', 'q', 'dq', 'mmq', 'pq', 'mmbq_v2'
 
 value_iteration_theta: 0.0001
 
