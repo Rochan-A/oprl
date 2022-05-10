@@ -1,1 +1,2 @@
-from .q_values import RandomPolicy, GreedyPolicy, EGPolicy
+from .q_values import *
+from .tilecoding import *

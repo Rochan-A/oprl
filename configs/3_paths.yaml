@@ -3,11 +3,7 @@ model: filev2 # one_state, five_state, gridworld, file, filev2
 # eg. MiniGrid-SimpleCrossingS11N5-v0 MiniGrid-Empty-8x8-v0
 # MiniGrid-LavaCrossingS11N5-v0 MiniGrid-LavaGapS7-v0 MiniGrid-FourRooms-v0
 env: MiniGrid-Empty-8x8-v0
-<<<<<<< HEAD
-map_path: ./maps/new_lava_large_three_cols.txt
-=======
-map_path: ./maps/mdp.txt
->>>>>>> d9bb02a9c3c9783d399f23a1d31eea0c781030d8
+map_path: ./maps/3_paths.txt
 gamma: 0.9
 seed: 0
 
@@ -19,32 +15,21 @@ env_mods:
   distance_bonus: False
 
 init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
-  Q: zero
-  V: zero
+  Q: rand
+  V: rand
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-<<<<<<< HEAD
-  repeat: 5
-=======
-  repeat: 100
-  steps: 400 # episodes
-  exploration_steps: 0 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
+  repeat: 20
+  steps: 10000 # episodes
+  exploration_steps: 40 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
 
 # Perform select experiments ('val_iter', 'q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq_v2')
-perform: ['val_iter', 'mmbq', 'q', 'dq', 'mmq'] # 'pq', 'mmbq_v2'
->>>>>>> d9bb02a9c3c9783d399f23a1d31eea0c781030d8
+perform: ['val_iter', 'q', 'dq', 'pq', 'mmq', 'mmbq', 'mmbq_v2'] # 'val_iter', 'q', 'dq', 'mmq', 'pq', 'mmbq_v2'
 
 value_iteration_theta: 0.0001
 
 q_learning:
-<<<<<<< HEAD
-  steps: 100 # episodes
-  alpha: 0.05
-  epsilon: 0.1
-  decay: 0.99 # epsilon decay rate
-  interval: 40 # epsilon decay interval
-=======
   alpha: 0.05
   epsilon:
     strat: exp_interval  # Espilon decay to use (const/exp/linear)
@@ -53,18 +38,10 @@ q_learning:
     decay: 0.99  # Epsilon decay rate
     steps: 40   # Number of steps to explore (Used for linear to get decay rate)
   use_buffer: True
->>>>>>> d9bb02a9c3c9783d399f23a1d31eea0c781030d8
   buffer_size: 100
   minibatch_size: 10
 
 dq_learning:
-<<<<<<< HEAD
-  steps: 100
-  alpha: 0.05
-  epsilon: 0.1
-  decay: 0.99
-  interval: 40
-=======
   alpha: 0.05
   epsilon:
     strat: exp_interval
@@ -73,7 +50,6 @@ dq_learning:
     decay: 0.99
     steps: 40
   use_buffer: True
->>>>>>> d9bb02a9c3c9783d399f23a1d31eea0c781030d8
   buffer_size: 100
   minibatch_size: 10
 
@@ -92,12 +68,6 @@ pessimistic_q_learning:
 
 mmq_learning:
   alpha: 0.05
-<<<<<<< HEAD
-  epsilon: 0.1
-  decay: 0.99
-  interval: 40
-  estimator_pools: [4]
-=======
   epsilon:
     strat: exp_interval
     start: 0.1
@@ -105,19 +75,11 @@ mmq_learning:
     decay: 0.99
     steps: 40
   estimator_pools: [2, 4, 6]
->>>>>>> d9bb02a9c3c9783d399f23a1d31eea0c781030d8
   buffer_size: 100
   minibatch_size: 10
 
 mmbq_learning:
   alpha: 0.05
-<<<<<<< HEAD
-  epsilon: 0.1
-  decay: 0.99
-  interval: 40
-  max_estimators: 5
-  cum_len: 5
-=======
   epsilon:
     strat: exp_interval
     start: 0.1
@@ -126,7 +88,6 @@ mmbq_learning:
     steps: 40
   max_estimators: 6
   cum_len: 10
->>>>>>> d9bb02a9c3c9783d399f23a1d31eea0c781030d8
   bandit_lr: 0.05
   buffer_size: 100
   minibatch_size: 10
