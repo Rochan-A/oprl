@@ -22,13 +22,13 @@ init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
 exp:
   repeat: 10
   steps: 4000 # episodes
-  exploration_steps: 0 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
+  exploration_steps: 40 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
 
 # Perform select experiments ('q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq_v2')
-perform: ['q', 'dq', 'mmbq', 'mmq']
+perform: ['q']
 
 q_learning:
-  alpha: 0.01
+  alpha: [0.1, 0.05, 0.01]
   epsilon:
     strat: exp_interval  # Espilon decay to use (const/exp/linear)
     start: 0.1    # Starting value (for const, this value is used at every step)
@@ -51,19 +51,6 @@ dq_learning:
   buffer_size: 100
   minibatch_size: 10
 
-pessimistic_q_learning:
-  alpha: 0.01
-  epsilon:
-    strat: exp_interval
-    start: 0.1
-    end: 0.01
-    decay: 0.99
-    steps: 40
-  pessimism_coeff: 0.1
-  use_buffer: True
-  buffer_size: 100
-  minibatch_size: 10
-
 mmq_learning:
   alpha: 0.01
   epsilon:
@@ -72,7 +59,7 @@ mmq_learning:
     end: 0.01
     decay: 0.99
     steps: 40
-  estimator_pools: [2, 4, 6]
+  estimator_pools: [2, 4, 5]
   buffer_size: 100
   minibatch_size: 10
 
@@ -84,19 +71,32 @@ mmbq_learning:
     end: 0.01
     decay: 0.99
     steps: 40
-  max_estimators: 6
-  cum_len: 10
-  bandit_lr: 0.05
+  max_estimators: 4
+  cum_len: 5
+  bandit_lr: 0.1
   buffer_size: 100
   minibatch_size: 10
 
-meanvar_q_learning:
-  alpha: 0.05
-  epsilon:
-    strat: exp_interval
-    start: 0.1
-    end: 0.01
-    decay: 0.99
-    steps: 40
-  coeff: 0.1
-  buffer_size: 100
+# pessimistic_q_learning:
+#   alpha: 0.01
+#   epsilon:
+#     strat: exp_interval
+#     start: 0.1
+#     end: 0.01
+#     decay: 0.99
+#     steps: 40
+#   pessimism_coeff: 0.1
+#   use_buffer: True
+#   buffer_size: 100
+#   minibatch_size: 10
+
+# meanvar_q_learning:
+#   alpha: 0.05
+#   epsilon:
+#     strat: exp_interval
+#     start: 0.1
+#     end: 0.01
+#     decay: 0.99
+#     steps: 40
+#   coeff: 0.1
+#   buffer_size: 100

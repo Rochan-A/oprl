@@ -19,16 +19,7 @@ def redraw(img):
     window.show_img(img)
 
 def reset():
-    # if args.seed != -1:
-    #     env.seed(args.seed)
-
-    obs = env.reset()
-
-    # if hasattr(env, 'mission'):
-    #     print('Mission: %s' % env.mission)
-    #     window.set_caption(env.mission)
-
-    # redraw(obs)
+    _ = env.reset()
 
 def step(action):
     obs, reward, done, info = env.step(action)
@@ -78,10 +69,6 @@ config = EasyDict(config)
 
 env = Maps(config.env, args.seed)
 env.load_map(config.map_path)
-
-# env = DistanceBonus(env)
-# env = StateBonus(env)
-# env = ActionBonus(env)
 
 _ = env.reset()
 

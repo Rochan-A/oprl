@@ -1,34 +1,49 @@
 from base64 import encode
 import numpy as np
+from regex import P
 from .tilecoding import TileCoder
 import math
 
-class BaseExploration(object):
-  # Base class for agent exploration strategies.
-  def __init__(self, exploration_steps, epsilon):
-      self.exploration_steps = exploration_steps
+FIX_EXPLORATION_SEED = False
 
-  def select_action(self, q_values):
-    raise NotImplementedError("To be implemented")
+class BaseExploration(object):
+    # Base class for agent exploration strategies.
+    def __init__(self, exploration_steps, epsilon, rng):
+        self.exploration_steps = exploration_steps
+        self.rng = rng
+
+        if FIX_EXPLORATION_SEED:
+            self.rand = rng.random
+            self.randint = rng.integer
+            self.randchoice = rng.choice
+        else:
+            self.rand = np.random.rand
+            self.randint = np.random.randint
+            self.randchoice = np.random.choice
+
+
+    def select_action(self, q_values):
+        raise NotImplementedError("To be implemented")
 
 
 class EpsilonGreedy(BaseExploration):
   '''
   Implementation of epsilon greedy exploration strategy
   '''
-  def __init__(self, exploration_steps, epsilon):
-    super().__init__(exploration_steps, epsilon)
+  def __init__(self, exploration_steps, epsilon, rng):
+    super().__init__(exploration_steps, epsilon, rng)
     self.epsilon = epsilon['start']
 
+
   def select_action(self, q_values, step_count):
-    if np.random.rand() < self.epsilon or step_count <= self.exploration_steps:
-      action = np.random.randint(0, len(q_values))
+    if self.rand() < self.epsilon or step_count <= self.exploration_steps:
+      action = self.randint(0, len(q_values))
     else:
       if np.sum(np.where(q_values == q_values.max(), 1, 0)) == 1:
         action = np.argmax(q_values)
       # If we don't, randomly choose one of the maximum values
       else:
-        action = np.random.choice(np.flatnonzero(q_values == q_values.max()))
+        action = self.randchoice(np.flatnonzero(q_values == q_values.max()))
     return action
 
 
@@ -36,8 +51,8 @@ class LinearEpsilonGreedy(BaseExploration):
   '''
   Implementation of linear decay epsilon greedy exploration strategy
   '''
-  def __init__(self, exploration_steps, epsilon):
-    super().__init__(exploration_steps, epsilon)
+  def __init__(self, exploration_steps, epsilon, rng):
+    super().__init__(exploration_steps, epsilon, rng)
     self.inc = (epsilon['end'] - epsilon['start']) / epsilon['steps']
     self.start = epsilon['start']
     self.end = epsilon['end']
@@ -48,14 +63,14 @@ class LinearEpsilonGreedy(BaseExploration):
 
   def select_action(self, q_values, step_count):
     self.epsilon = self.bound(self.start + step_count * self.inc, self.end)
-    if np.random.rand() < self.epsilon or step_count <= self.exploration_steps:
-      action = np.random.randint(0, len(q_values))
+    if self.rand() < self.epsilon or step_count <= self.exploration_steps:
+      action = self.randint(0, len(q_values))
     else:
       if np.sum(np.where(q_values == q_values.max(), 1, 0)) == 1:
         action = np.argmax(q_values)
       # If we don't, randomly choose one of the maximum values
       else:
-        action = np.random.choice(np.flatnonzero(q_values == q_values.max()))
+        action = self.randchoice(np.flatnonzero(q_values == q_values.max()))
     return action
 
 
@@ -64,8 +79,8 @@ class ExponentialEpsilonIntervalGreedy(BaseExploration):
   Implementation of exponential decay epsilon greedy exploration strategy:
     epsilon = bound(epsilon_end, epsilon_start * (decay ** step//interval))
   '''
-  def __init__(self, exploration_steps, epsilon):
-    super().__init__(exploration_steps, epsilon)
+  def __init__(self, exploration_steps, epsilon, rng):
+    super().__init__(exploration_steps, epsilon, rng)
     self.decay = epsilon['decay']
     self.start = epsilon['start']
     self.interval = epsilon['steps']
@@ -77,14 +92,14 @@ class ExponentialEpsilonIntervalGreedy(BaseExploration):
 
   def select_action(self, q_values, step_count):
     self.epsilon = self.bound(self.start * math.pow(self.decay, step_count//self.interval), self.end)
-    if np.random.rand() < self.epsilon or step_count <= self.exploration_steps:
-      action = np.random.randint(0, len(q_values))
+    if self.rand() < self.epsilon or step_count <= self.exploration_steps:
+      action = self.randint(0, len(q_values))
     else:
       if np.sum(np.where(q_values == q_values.max(), 1, 0)) == 1:
         action = np.argmax(q_values)
       # If we don't, randomly choose one of the maximum values
       else:
-        action = np.random.choice(np.flatnonzero(q_values == q_values.max()))
+        action = self.randchoice(np.flatnonzero(q_values == q_values.max()))
     return action
 
 
@@ -93,8 +108,8 @@ class ExponentialEpsilonGreedy(BaseExploration):
   Implementation of exponential decay epsilon greedy exploration strategy:
     epsilon = bound(epsilon_end, epsilon_start * (decay ** step))
   '''
-  def __init__(self, exploration_steps, epsilon):
-    super().__init__(exploration_steps, epsilon)
+  def __init__(self, exploration_steps, epsilon, rng):
+    super().__init__(exploration_steps, epsilon, rng)
     self.decay = epsilon['decay']
     self.start = epsilon['start']
     self.end = epsilon['end']
@@ -105,14 +120,14 @@ class ExponentialEpsilonGreedy(BaseExploration):
 
   def select_action(self, q_values, step_count):
     self.epsilon = self.bound(self.start * math.pow(self.decay, step_count), self.end)
-    if np.random.rand() < self.epsilon or step_count <= self.exploration_steps:
-      action = np.random.randint(0, len(q_values))
+    if self.rand() < self.epsilon or step_count <= self.exploration_steps:
+      action = self.randint(0, len(q_values))
     else:
       if np.sum(np.where(q_values == q_values.max(), 1, 0)) == 1:
         action = np.argmax(q_values)
       # If we don't, randomly choose one of the maximum values
       else:
-        action = np.random.choice(np.flatnonzero(q_values == q_values.max()))
+        action = self.choice(np.flatnonzero(q_values == q_values.max()))
     return action
 
 
@@ -145,7 +160,7 @@ class RandomPolicy(Policy):
         return self.p[action]
 
     def action(self, state):
-        return self.rng.random.choice(len(self.p), p=self.p)
+        return self.rng.choice(len(self.p), p=self.p)
 
 
 class GreedyPolicy(Policy):
@@ -170,17 +185,17 @@ class GreedyPolicy(Policy):
 
 
 class EGPolicy(Policy):
-    def __init__(self, Q, epsilon, exploration_steps):
+    def __init__(self, Q, epsilon, exploration_steps, rng):
         """Epsilon Greedy Policy"""
         self.Q = Q
         if epsilon['strat'] == 'const':
-            self.epsilon = EpsilonGreedy(exploration_steps, epsilon)
+            self.epsilon = EpsilonGreedy(exploration_steps, epsilon, rng)
         elif epsilon['strat'] == 'linear':
-            self.epsilon = LinearEpsilonGreedy(exploration_steps, epsilon)
+            self.epsilon = LinearEpsilonGreedy(exploration_steps, epsilon, rng)
         elif epsilon['strat'] == 'exp':
-            self.epsilon = ExponentialEpsilonGreedy(exploration_steps, epsilon)
+            self.epsilon = ExponentialEpsilonGreedy(exploration_steps, epsilon, rng)
         elif epsilon['strat'] == 'exp_interval':
-            self.epsilon = ExponentialEpsilonIntervalGreedy(exploration_steps, epsilon)
+            self.epsilon = ExponentialEpsilonIntervalGreedy(exploration_steps, epsilon, rng)
         else:
             assert False, 'Invalid epsilon strategy...'
 
@@ -204,20 +219,20 @@ class EGPolicy(Policy):
 class QLearningAgent:
     """Q-Learning agent that can act on a continuous state space by discretizing it."""
 
-    def __init__(self, T, Q, epsilon, exploration_steps):
+    def __init__(self, T, Q, epsilon, exploration_steps, rng):
         """Initialize variables, create grid for discretization."""
         # Environment info
         self.tq = T
         self.w = Q
 
         if epsilon['strat'] == 'const':
-            self.epsilon = EpsilonGreedy(exploration_steps, epsilon)
+            self.epsilon = EpsilonGreedy(exploration_steps, epsilon, rng)
         elif epsilon['strat'] == 'linear':
-            self.epsilon = LinearEpsilonGreedy(exploration_steps, epsilon)
+            self.epsilon = LinearEpsilonGreedy(exploration_steps, epsilon, rng)
         elif epsilon['strat'] == 'exp':
-            self.epsilon = ExponentialEpsilonGreedy(exploration_steps, epsilon)
+            self.epsilon = ExponentialEpsilonGreedy(exploration_steps, epsilon, rng)
         elif epsilon['strat'] == 'exp_interval':
-            self.epsilon = ExponentialEpsilonIntervalGreedy(exploration_steps, epsilon)
+            self.epsilon = ExponentialEpsilonIntervalGreedy(exploration_steps, epsilon, rng)
         else:
             assert False, 'Invalid epsilon strategy...'
 
@@ -225,6 +240,35 @@ class QLearningAgent:
         Q_s = np.sum(self.w[self.tq[state]], axis=0)
         # Pick the best action from Q table
         return self.epsilon.select_action(Q_s, step_count)
+
+
+class QLearningAgentGreedy:
+    """Q-Learning agent that can act on a continuous state space by discretizing it."""
+
+    def __init__(self, T, Q, rng):
+        """Initialize variables, create grid for discretization."""
+        # Environment info
+        self.tq = T
+        self.w = Q
+        self.rng = rng
+
+        if FIX_EXPLORATION_SEED:
+            self.randchoice = rng.choice
+        else:
+            self.randchoice = np.random.choice
+
+
+    def action(self, state, step_count):
+        Q_s = np.sum(self.w[self.tq[state]], axis=0)
+        # Pick the best action from Q table
+
+        if np.sum(np.where(Q_s == Q_s.max(), 1, 0)) == 1:
+            action = np.argmax(Q_s)
+        # If we don't, randomly choose one of the maximum values
+        else:
+            action = self.randchoice(np.flatnonzero(Q_s == Q_s.max()))
+
+        return action
 
 
 def update(Q, state, action, delta, T, n_tiles):

@@ -3,7 +3,7 @@ model: filev2 # one_state, five_state, gridworld, file, filev2
 # eg. MiniGrid-SimpleCrossingS11N5-v0 MiniGrid-Empty-8x8-v0
 # MiniGrid-LavaCrossingS11N5-v0 MiniGrid-LavaGapS7-v0 MiniGrid-FourRooms-v0
 env: MiniGrid-Empty-8x8-v0
-map_path: ./maps/new_lava_small_rew.txt
+map_path: ./maps/new_lava_small.txt
 gamma: 0.9
 seed: 0
 
@@ -20,12 +20,13 @@ init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-  repeat: 20
+  repeat: 10
   steps: 10000 # episodes
   exploration_steps: 40 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
 
 # Perform select experiments ('val_iter', 'q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq_v2')
-perform: ['val_iter', 'q', 'dq', 'pq', 'mmq', 'mmbq', 'mmbq_v2'] # 'val_iter', 'q', 'dq', 'mmq', 'pq', 'mmbq_v2'
+perform: ['mmbq_v2'] # 'val_iter', 'q', 'dq', 'mmq', 'pq', 'mmbq_v2'
+# 
 
 value_iteration_theta: 0.0001
 
@@ -33,13 +34,13 @@ q_learning:
   alpha: 0.05
   epsilon:
     strat: exp_interval  # Espilon decay to use (const/exp/linear)
-    start: 0.1    # Starting value (for const, this value is used at every step)
+    start: 0.1    # Starting value (for const, this 9value is used at every step)
     end: 0.01     # End value (for linear)
     decay: 0.99  # Epsilon decay rate
     steps: 40   # Number of steps to explore (Used for linear to get decay rate)
   use_buffer: True
   buffer_size: 100
-  minibatch_size: 10
+  minibatch_size: 1
 
 dq_learning:
   alpha: 0.05
@@ -51,20 +52,7 @@ dq_learning:
     steps: 40
   use_buffer: True
   buffer_size: 100
-  minibatch_size: 10
-
-pessimistic_q_learning:
-  alpha: 0.05
-  epsilon:
-    strat: exp_interval
-    start: 0.1
-    end: 0.01
-    decay: 0.99
-    steps: 40
-  pessimism_coeff: 0.1
-  use_buffer: True
-  buffer_size: 100
-  minibatch_size: 10
+  minibatch_size: 1
 
 mmq_learning:
   alpha: 0.05
@@ -74,9 +62,9 @@ mmq_learning:
     end: 0.01
     decay: 0.99
     steps: 40
-  estimator_pools: [2, 4, 6]
+  estimator_pools: [2, 4, 5]
   buffer_size: 100
-  minibatch_size: 10
+  minibatch_size: 1
 
 mmbq_learning:
   alpha: 0.05
@@ -86,19 +74,32 @@ mmbq_learning:
     end: 0.01
     decay: 0.99
     steps: 40
-  max_estimators: 6
-  cum_len: 10
-  bandit_lr: 0.05
+  max_estimators: 5
+  cum_len: 5
+  bandit_lr: 0.1
   buffer_size: 100
-  minibatch_size: 10
+  minibatch_size: 1
 
-meanvar_q_learning:
-  alpha: 0.05
-  epsilon:
-    strat: exp_interval
-    start: 0.1
-    end: 0.01
-    decay: 0.99
-    steps: 40
-  coeff: 0.1
-  buffer_size: 100
+# meanvar_q_learning:
+#   alpha: 0.05
+#   epsilon:
+#     strat: exp_interval
+#     start: 0.1
+#     end: 0.01
+#     decay: 0.99
+#     steps: 40
+#   coeff: 0.1
+#   buffer_size: 100
+
+# pessimistic_q_learning:
+#   alpha: 0.05
+#   epsilon:
+#     strat: exp_interval
+#     start: 0.1
+#     end: 0.01
+#     decay: 0.99
+#     steps: 40
+#   pessimism_coeff: 0.1
+#   use_buffer: True
+#   buffer_size: 100
+#   minibatch_size: 1

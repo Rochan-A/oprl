@@ -77,16 +77,16 @@ mmq_learning:
   minibatch_size: 10
 
 mmbq_learning:
-  alpha: 0.01
+  alpha: 0.05
   epsilon:
     strat: exp_interval
     start: 0.1
     end: 0.01
     decay: 0.99
     steps: 40
-  max_estimators: 6
-  cum_len: 10
-  bandit_lr: 0.05
+  max_estimators: 5
+  cum_len: 5
+  bandit_lr: 0.005
   buffer_size: 100
   minibatch_size: 10
 

@@ -65,10 +65,10 @@ def state_values_to_grid(V, env):
     return grid
 
 
-def save_matrix_as_image(grid, filename, int_=False, cmap=plt.cm.Blues, fmt='png'):
+def save_matrix_as_image(grid, filename, int_=False, cmap=plt.cm.Blues, fmt='png', vmin=-5, vmax=5):
     """Given grid of values, plot and save."""
     fig, ax = plt.subplots(dpi=200)
-    ax.matshow(grid, cmap=cmap)
+    ax.matshow(grid, cmap=cmap, vmin=vmin, vmax=vmax)
     for i in range(grid.shape[1]):
         for j in range(grid.shape[0]):
             if not np.isnan(grid[j,i]):
@@ -135,38 +135,35 @@ def smooth_exp(scalars, weight):  # Weight between 0 and 1
 def plot_mean_cum_rewards(data, exp_name, do_smooth=False, std_factor=0.5, fmt='png'):
     """Compute mean and std of env data."""
     labels = list(data.keys())
-    means, stds = [], []
-    for val in data.values():
+    means, stds = {}, {}
+    for i, key in enumerate(data):
+        val = data[key][:, :4000, :]
         # reward
         if do_smooth:
-            means.append(smooth_exp(val[:, :, 0].mean(0, dtype=np.float64), 0.9))
+            means[key] = smooth_exp(val[:, :, 0].mean(0, dtype=np.float64), 0.995)
         else:
-            means.append(val[:, :, 0].mean(0, dtype=np.float64))
-        stds.append(val[:, :, 0].std(0, ddof=1, dtype=np.float64))
+            means[key] = val[:, :, 0].mean(0, dtype=np.float64)
+        stds[key] = val[:, :, 0].std(0, ddof=1, dtype=np.float64)
 
     fig, ax = plt.subplots(dpi=200)
-    # clrs = sns.color_palette("husl", len(data))
-    #with sns.axes_style("darkgrid"):
     for i, key in enumerate(data):
-        if key in ['Vanilla Q', 'Double Q', 'Maxmin Bandit Q', 'Maxmin Q n 6', 'Maxmin Q n 4', 'Maxmin Q n 6']:
-            ax.plot(np.arange(
-                data[key].shape[-2]),
-                means[i],
-                label=labels[i],
-                # c=clrs[i]
-            )
-            ax.fill_between(
-                np.arange(data[key].shape[-2]),
-                means[i]-(stds[i]*std_factor),
-                means[i]+(stds[i]*std_factor),
-                alpha=0.1,
-                # facecolor=clrs[i]
-            )
-        # ax.set_title("Mean Cummulative Reward")
+            #data[key].shape[-2]),
+        ax.plot(np.arange(
+            4000),
+            means[key],
+            label=labels[i],
+        )
+        ax.fill_between(
+            # np.arange(data[key].shape[-2]),
+            np.arange(4000),
+            means[key]-(stds[key]*std_factor),
+            means[key]+(stds[key]*std_factor),
+            alpha=0.1,
+        )
         ax.set_xlabel('Steps')
         ax.set_ylabel('Reward')
         plt.tight_layout()
-        plt.legend()#bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
+        plt.legend()
         plt.savefig(join(exp_name, 'reward_plot.{}'.format(fmt)), format=fmt, bbox_inches='tight')
 
 
@@ -232,7 +229,7 @@ def plot_V_values(env, star_values, data, exp_name, fmt='png'):
     if V_star is not None:
         # Plot true values
         grid = state_values_to_grid(V_star, env)
-        save_matrix_as_image(grid, join(exp_name, 'Optimal Q.{}'.format(fmt)))
+        save_matrix_as_image(grid, join(exp_name, 'Optimal Q.{}'.format(fmt)), vmin=-1.0, vmax=1.0)
 
     means, stds = [], []
     for idx, val in enumerate(data.values()):
@@ -242,17 +239,10 @@ def plot_V_values(env, star_values, data, exp_name, fmt='png'):
         means.append(values.mean(0))
         stds.append(values.std(0))
         grid = state_values_to_grid(values.mean(0), env)
-        save_matrix_as_image(grid, join(exp_name, labels[idx]+'.{}'.format(fmt)))
+        save_matrix_as_image(grid, join(exp_name, labels[idx]+'.{}'.format(fmt)), vmin=-1.0, vmax=1.0)
 
         # Diff between true value and calculated
         a = (values.mean(0) - V_star)/V_star
-
-        grid = state_values_to_grid(a, env)
-        save_matrix_as_image(
-            grid,
-            join(exp_name, '{}_diff.{}'.format(labels[idx], fmt)),
-            cmap=plt.cm.coolwarm,
-            fmt=fmt)
 
         grid = state_values_to_grid(a, env)
         save_matrix_as_image(

@@ -20,19 +20,19 @@ init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-  repeat: 1
-  steps: 10000 # episodes
+  repeat: 10
+  steps: 2000 # episodes
   exploration_steps: 0 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
 
 # Perform select experiments ('q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq_v2')
-perform: ['q'] #, 'dq', 'mmbq'] #, 'dq', 'mmq', 'mmbq', 'mmbq_2']
+perform: ['q', 'dq', 'mmq', 'mmbq'] #, 'dq', , 'mmbq', 'mmbq_2']
 
 q_learning:
-  alpha: 0.001
+  alpha: 0.01
   epsilon:
     strat: exp_interval  # Espilon decay to use (const/exp/linear)
     start: 0.1    # Starting value (for const, this value is used at every step)
-    end: 0.00     # End value (for linear)
+    end: 0.01     # End value (for linear)
     decay: 0.99  # Epsilon decay rate
     steps: 40   # Number of steps to explore (Used for linear to get decay rate)
   use_buffer: True
@@ -40,7 +40,7 @@ q_learning:
   minibatch_size: 10
 
 dq_learning:
-  alpha: 0.001
+  alpha: 0.01
   epsilon:
     strat: exp_interval
     start: 0.1
@@ -52,7 +52,7 @@ dq_learning:
   minibatch_size: 10
 
 pessimistic_q_learning:
-  alpha: 0.05
+  alpha: 0.01
   epsilon:
     strat: exp_interval
     start: 0.1
@@ -65,6 +65,18 @@ pessimistic_q_learning:
   minibatch_size: 10
 
 mmq_learning:
+  alpha: 0.01
+  epsilon:
+    strat: exp_interval
+    start: 0.1
+    end: 0.01
+    decay: 0.99
+    steps: 40
+  estimator_pools: [2, 4, 6]
+  buffer_size: 100
+  minibatch_size: 10
+
+mmbq_learning:
   alpha: 0.05
   epsilon:
     strat: exp_interval
@@ -72,21 +84,9 @@ mmq_learning:
     end: 0.01
     decay: 0.99
     steps: 40
-  estimator_pools: [6]
-  buffer_size: 100
-  minibatch_size: 10
-
-mmbq_learning:
-  alpha: 0.01
-  epsilon:
-    strat: exp_interval
-    start: 0.1
-    end: 0.1
-    decay: 0.99
-    steps: 40
-  max_estimators: 3
-  cum_len: 10
-  bandit_lr: 0.1
+  max_estimators: 5
+  cum_len: 5
+  bandit_lr: 0.005
   buffer_size: 100
   minibatch_size: 10
 

@@ -188,13 +188,13 @@ class NoisyReward(gym.core.Wrapper):
     Wrapper which adds gaussian noise to the reward at each step.
     """
 
-    def __init__(self, env, std=1):
+    def __init__(self, env, rng, std=1):
         super().__init__(env)
         self.std = std
+        self.rng = rng
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
-
         reward += np.random.normal(0, self.std)
 
         return obs, reward, done, info
@@ -342,11 +342,12 @@ class Maps(gym.Env):
         down = 3
 
 
-    def __init__(self, env, seed=0):
+    def __init__(self, env, rng, seed=0):
         super().__init__()
 
         self.env = gym.make(env)
         self.seed = seed
+        self.rng = rng
         self.env.seed = seed
 
         # Action enumeration for this environment
@@ -390,7 +391,7 @@ class Maps(gym.Env):
         # stochastic transition
         if self.state[self.agent_pos[0], self.agent_pos[1]] == OBJECT_TO_IDX['rand_t']:
             valid_dx_dy = self.stoch_visit[str(self.agent_pos)]
-            idx = np.random.randint(len(valid_dx_dy))
+            idx = self.rng.integers(0, len(valid_dx_dy))
             self.agent_pos[0] += valid_dx_dy[idx][0]
             self.agent_pos[1] += valid_dx_dy[idx][1]
 
@@ -429,7 +430,7 @@ class Maps(gym.Env):
                 try:
                     pos = np.where((self.stoch_r_pos == prev_pos).all(axis=1))[0]
                     if self.stoch_r_state[pos] == 0:
-                        reward = np.random.normal(-RAND_R_MU, RAND_R_STD)
+                        reward = self.rng.normal(RAND_R_MU, RAND_R_STD)
                         self.stoch_r_state[pos] += 1
                 except:
                     reward = 0

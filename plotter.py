@@ -1,22 +1,12 @@
-import numpy as np
-import ast
 from os.path import join
 
 import argparse
 import yaml
 from easydict import EasyDict
 import glob
-import json
 
-from envs import *
+from envs import Converted, EnvModel, Maps, MapsEnvModel
 from utils.data import *
-
-# font = {'family':'normal', 'weight':'normal', 'size': 12}
-# matplotlib.rc('font', **font)
-# # Avoid Type 3 fonts in matplotlib plots: http://phyletica.org/matplotlib-fonts/
-# matplotlib.rcParams['pdf.fonttype'] = 42
-# matplotlib.rcParams['ps.fonttype'] = 42
-
 
 def load_experiments_and_env(path, algos, plots):
     """Save experiment data"""
@@ -37,6 +27,8 @@ def load_experiments_and_env(path, algos, plots):
         for key in env_files:
             load_data['env_loggers'][' '.join(key.split('/')[-1].split('_')[:-1])] = \
                     decompress_pickle(key)
+
+    print(load_data['env_loggers'].keys())
 
     load_data['q_loggers'] = {}
     if 'q_vals' in plots or 'v_vals' in plots:

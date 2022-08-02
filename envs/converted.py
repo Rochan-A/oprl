@@ -166,12 +166,13 @@ class Converted(gym.Env):
         # done = 7
 
 
-    def __init__(self, env, seed=0):
+    def __init__(self, env, rng, seed=0):
         super().__init__()
 
         self.env = gym.make(env)
-        self.seed = seed
         self.env.seed(seed)
+        self.seed = seed
+        self.rng = rng
 
         # Action enumeration for this environment
         self.actions = Converted.Actions
@@ -183,9 +184,11 @@ class Converted(gym.Env):
         self.max_steps = 100
         self.map = None
 
+
     def load_map(self, path):
         """Load world from file located at path"""
         self.map = np.loadtxt(path)
+
 
     def step(self, action):
 
@@ -230,6 +233,7 @@ class Converted(gym.Env):
 
         obs = np.where((self.S == self.agent_pos).all(axis=1))[0][0]
         return obs, reward, done, {}
+
 
     def reset(self, **kwargs):
         """Create the converted environment"""
