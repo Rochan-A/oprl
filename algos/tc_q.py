@@ -40,7 +40,7 @@ def get_min_q(Q: np.array, max_estimators, active_estimators=-1, fixed_estimator
         return np.amin( Q[ind, :, :], axis=0 ).squeeze()
 
 
-def get_min_q_reorder(Q: np.array, max_estimators, active_estimators=-1, boost=0):
+def get_min_q_reorder(Q: np.array, max_estimators, active_estimators=-1):
     """Returns the minimum Q table"""
     # idx = [i for i in range(max_estimators)] # List of all indices
 
@@ -51,7 +51,6 @@ def get_min_q_reorder(Q: np.array, max_estimators, active_estimators=-1, boost=0
 
     ind = np.arange(0, active_estimators)
     return np.amin( Q[ind, :, :], axis=0).squeeze(), Q
-
 
 
 def Q_learning(
@@ -633,6 +632,7 @@ def MaxminBanditQ_v2(
                     np.arange(len(mem[0])),
                     minibatch_size
                 )
+
                 s_, a_, r_, s1_ = \
                     mem[0][sample_idx], np.int64(mem[1][sample_idx]), \
                     mem[2][sample_idx], mem[3][sample_idx]
@@ -643,7 +643,7 @@ def MaxminBanditQ_v2(
 
             s = s1
 
-            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators, update_est_idx)
+            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators)
             pi.w = Q_min
 
             c_r += r
@@ -667,7 +667,7 @@ def MaxminBanditQ_v2(
 
         if i != n - 1:
             active_estimators = TDC.sample()
-            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators, boost=update_est_idx)
+            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators)
             pi.w = Q_min
 
     return Q_min, Envlogs, Bandit_logger, Estimator_logger

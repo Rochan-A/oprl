@@ -39,9 +39,9 @@ def get_min_q_reorder(Q: np.array, max_estimators, active_estimators=-1, boost=0
     idx = [i for i in range(max_estimators)] # List of all indices
 
     # boost latest updated estimator to first position
-    idx.remove(boost)
-    idx = list((boost,)) + idx
-    Q = Q[idx, :, :]
+    # idx.remove(boost)
+    # idx = list((boost,)) + idx
+    # Q = Q[idx, :, :]
 
     ind = np.arange(0, active_estimators)
     return np.amin( Q[ind, :, :], axis=0).squeeze(), Q
@@ -51,7 +51,8 @@ def Q_learning(
     env: gym.Env,
     config: EasyDict,
     Q: np.ndarray,
-    rng
+    rng,
+    alpha
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     input:
@@ -71,7 +72,7 @@ def Q_learning(
 
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    alpha = config.q_learning.alpha
+    # alpha = config.q_learning.alpha
     gamma = config.gamma
     epsilon = config.q_learning.epsilon
     use_buffer = config.q_learning.use_buffer
@@ -100,29 +101,26 @@ def Q_learning(
             VisitLogger[i, s, a] += 1
             s1, r, done, _ = env.step(a)
 
-            if use_buffer:
-                mem.extendleft(np.array([[s, a, r, s1]]))
-                if len(mem) == buffer_size:
-                    sample_idx = np.random.choice(
-                        np.arange(0, len(mem)),
-                        minibatch_size
-                    )
-                    update_trans = mem[sample_idx]
-                    s_, a_, r_, s1_ = \
-                        np.int64(update_trans[:, 0]), \
-                        np.int64(update_trans[:, 1]), \
-                        update_trans[:, 2], \
-                        np.int64(update_trans[:, 3])
-            else:
-                s_, a_, r_, s1_ = s, a, r, s1
+            mem.extendleft(np.array([[s, a, r, s1]]))
+
+            if len(mem) == buffer_size:
+                sample_idx = np.random.choice(
+                    np.arange(0, len(mem)),
+                    minibatch_size
+                )
+                update_trans = mem[sample_idx]
+                s_, a_, r_, s1_ = \
+                    np.int64(update_trans[:, 0]), \
+                    np.int64(update_trans[:, 1]), \
+                    update_trans[:, 2], \
+                    np.int64(update_trans[:, 3])
 
                 Q[ np.int64(s_), np.int64(a_) ] += alpha * (r_ + (gamma * np.max(Q[ np.int64(s1_), :])) - Q[ np.int64(s_), np.int64(a_) ])
 
             s = s1
+            c_r += r
 
             pi.update(Q)
-
-            c_r += r
 
         Qlogger[i, ::] = Q
         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
@@ -134,7 +132,8 @@ def DoubleQ(
     env: gym.Env,
     config: EasyDict,
     Q: np.ndarray,
-    rng
+    rng,
+    alpha
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     input:
@@ -156,7 +155,7 @@ def DoubleQ(
 
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    alpha = config.dq_learning.alpha
+    # alpha = config.dq_learning.alpha
     gamma = config.gamma
     epsilon = config.dq_learning.epsilon
     use_buffer = config.dq_learning.use_buffer
@@ -196,29 +195,27 @@ def DoubleQ(
 
             s1, r, done, _ = env.step(a)
 
-            # experience replay
-            if use_buffer:
-                mem.extendleft(np.array([[s, a, r, s1]]))
-                if len(mem) == buffer_size:
-                    sample_idx = np.random.choice(
-                        np.arange(0, len(mem)),
-                        minibatch_size
-                    )
-                    update_trans = mem[sample_idx]
-                    s_, a_, r_, s1_ = \
-                            np.int64(update_trans[:, 0]), \
-                            np.int64(update_trans[:, 1]), \
-                            update_trans[:, 2], \
-                            np.int64(update_trans[:, 3])
+            mem.extendleft(np.array([[s, a, r, s1]]))
+            if len(mem) == buffer_size:
+                sample_idx = np.random.choice(
+                    np.arange(0, len(mem)),
+                    minibatch_size
+                )
+                update_trans = mem[sample_idx]
+                s_, a_, r_, s1_ = \
+                        np.int64(update_trans[:, 0]), \
+                        np.int64(update_trans[:, 1]), \
+                        update_trans[:, 2], \
+                        np.int64(update_trans[:, 3])
 
-                    if A:
-                        Q[0, np.int64(s_), np.int64(a_)] += alpha * (
-                            r_ + gamma * Q[1, np.int64(s1_), np.argmax(Q[0, np.int64(s1_), :], axis=-1)] - Q[0, np.int64(s_), np.int64(a_)]
-                        )
-                    else:
-                        Q[1, np.int64(s_), np.int64(a_)] += alpha * (
-                            r_ + gamma * Q[0, np.int64(s1_), np.argmax(Q[1, np.int64(s1_), :], axis=-1)] - Q[1, np.int64(s_), np.int64(a_) ]
-                        )
+                if A:
+                    Q1[np.int64(s_), np.int64(a_)] += alpha * (
+                        r_ + gamma * Q2[np.int64(s1_), np.argmax(Q1[np.int64(s1_), :], axis=-1)] - Q1[np.int64(s_), np.int64(a_)]
+                    )
+                else:
+                    Q2[np.int64(s_), np.int64(a_)] += alpha * (
+                        r_ + gamma * Q1[np.int64(s1_), np.argmax(Q2[np.int64(s1_), :], axis=-1)] - Q2[np.int64(s_), np.int64(a_) ]
+                    )
 
             s = s1
 
@@ -243,7 +240,8 @@ def MaxminQ(
     config: EasyDict,
     estimators: int,
     Q_init: np.array,
-    rng
+    rng,
+    alpha
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     input:
@@ -264,7 +262,7 @@ def MaxminQ(
 
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    alpha = config.mmq_learning.alpha
+    # alpha = config.mmq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmq_learning.epsilon
     buffer_size = config.mmq_learning.buffer_size
@@ -284,10 +282,7 @@ def MaxminQ(
     assert Q_min.shape == (env.nS, env.nA)
 
     pi = EGPolicy(Q_min, epsilon, exploration_steps, rng)
-
-    mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
-
-    memory = deque([], maxlen=config.mmq_learning.buffer_size)
+    mem = deque([], maxlen=buffer_size)
 
     for i in range( config.mmq_learning.steps ):
         s = env.reset()
@@ -299,7 +294,7 @@ def MaxminQ(
             VisitLogger[i, s, a] += 1
 
             s1, r, done, _ = env.step(a)
-            memory.append([s, a, r, s1])
+            mem.append([s, a, r, s1])
 
             if len(mem) == buffer_size:
                 update_est_idx = np.random.choice(estimators)
@@ -335,7 +330,8 @@ def MaxminBanditQ(
     env: gym.Env,
     config: EasyDict,
     Q_init: np.array,
-    rng
+    rng,
+    alpha
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     input:
@@ -356,7 +352,7 @@ def MaxminBanditQ(
 
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    alpha = config.mmbq_learning.alpha
+    # alpha = config.mmbq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmbq_learning.epsilon
     max_estimators = config.mmbq_learning.max_estimators
@@ -388,9 +384,8 @@ def MaxminBanditQ(
 
     pi = EGPolicy(Q_min, epsilon, exploration_steps, rng)
 
-    # memory = RingBuffer(capacity=config.mmbq_learning.buffer_size, dtype=(float, (4)))
-    mem = deque([], maxlen = config.mmbq_learning.buffer_size)
-    c_r_memory = deque([], maxlen = config.mmbq_learning.cum_len + 1)
+    mem = deque([], maxlen = buffer_size)
+    c_r_memory = deque([], maxlen = bandit_r_buf_len + 1)
 
     for i in range(n):
         s = env.reset()
@@ -405,13 +400,12 @@ def MaxminBanditQ(
 
             mem.append([s, a, r, s1])
 
-
             if len(mem) == buffer_size:
-                update_est_idx = np.random.choice(np.arange(0, max_estimators), max_estimators - active_estimators + 1)
                 sample_idx = np.random.choice(
                     np.arange(0, len(mem)),
                     minibatch_size
                 )
+                update_est_idx = np.random.choice(max_estimators)
                 update_trans = mem[sample_idx]
                 a_p = np.argmax(Q_min[np.int64(update_trans[:, 3]), :], axis=-1)
                 MMBQ[update_est_idx, np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1])] += \
@@ -454,7 +448,8 @@ def MaxminBanditQ_v2(
     env: gym.Env,
     config: EasyDict,
     Q_init: np.array,
-    rng
+    rng,
+    alpha
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     input:
@@ -475,7 +470,7 @@ def MaxminBanditQ_v2(
 
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    alpha = config.mmbq_learning.alpha
+    # alpha = config.mmbq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmbq_learning.epsilon
     max_estimators = config.mmbq_learning.max_estimators
@@ -492,10 +487,11 @@ def MaxminBanditQ_v2(
     MMBQ = np.repeat(Q_init[np.newaxis, :, :], max_estimators, axis=0)
     assert MMBQ.shape == (max_estimators, env.nS, env.nA)
 
-    TDC = Exp3(n_arms=max_estimators, gamma=0.15)
-    # TDC = ExpWeights(arms=[i for i in range(1, max_estimators+1)], lr=0.2, window=5, use_std=False)
+    TDC = ExpWeights(arms=[i for i in range(1, max_estimators+1)], init=1)
 
     num_a_est = np.zeros(max_estimators)
+    est_upd_age = np.zeros(max_estimators)
+    idxs = np.arange(0, max_estimators)
 
     terminal = env.final_state
     MMBQ[:, terminal, :] = 0
@@ -507,9 +503,10 @@ def MaxminBanditQ_v2(
 
     pi = EGPolicy(Q_min, epsilon, exploration_steps, rng)
 
-    mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
+    mem = deque([], maxlen = buffer_size)
     c_r_memory = [deque([], maxlen = bandit_r_buf_len + 1) for _ in range(max_estimators+1)]
 
+    age = 0
     for i in range( n ):
         s = env.reset()
         done = False
@@ -521,33 +518,37 @@ def MaxminBanditQ_v2(
 
             s1, r, done, _ = env.step(a)
 
-            mem.extendleft(np.array([[s, a, r, s1]]))
+            mem.append([s, a, r, s1])
 
-            update_est_idx = 0
             if len(mem) == buffer_size:
-                update_est_idx = np.random.choice(np.arange(0, max_estimators))
+                update_ind = np.random.choice(max_estimators)
+                est_upd_age[update_ind] = age
+                idxs = np.argsort(est_upd_age)[::-1] # sort in decending order
+
                 sample_idx = np.random.choice(
                     np.arange(0, len(mem)),
                     minibatch_size
                 )
+
                 update_trans = mem[sample_idx]
                 a_p = np.argmax(Q_min[np.int64(update_trans[:, 3]), :], axis=-1)
 
                 td_error = update_trans[:, 2] \
                             + gamma \
                             * Q_min[np.int64(update_trans[:, 3]), a_p] \
-                            - MMBQ[update_est_idx, np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1])]
+                            - MMBQ[update_ind, np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1])]
 
-                MMBQ[update_est_idx, np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1])] += \
+                MMBQ[update_ind, np.int64(update_trans[:, 0]), np.int64(update_trans[:, 1])] += \
                         alpha \
                         * (td_error)
 
             s = s1
 
-            Q_min, MMBQ = get_min_q_reorder(MMBQ, max_estimators, active_estimators, update_est_idx)
-            pi.update(Q_min)
-
             c_r += r
+            age += 1
+
+            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators)
+            pi.update(Q_min)
 
         # Change based on env, used to normalize the cumulative reward
         TDC.update((c_r+1.5)/3)
@@ -566,140 +567,7 @@ def MaxminBanditQ_v2(
 
         if i != n - 1:
             active_estimators = TDC.sample()
-            Q_min, MMBQ = get_min_q_reorder(MMBQ, max_estimators, active_estimators, boost=update_est_idx)
+            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators, boost=update_est_idx)
             pi.update(Q_min)
 
-
     return Q_min, MMBQ_logger, Envlogs, VisitLogger, Bandit_logger, Estimator_logger
-
-
-# def PessimisticQ(
-#     env: gym.Env,
-#     config: EasyDict,
-#     PQ: np.array,
-#     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-#     """
-#     input:
-#         env: environment
-#         config: config
-#         PQ: initial Q function
-#     ret:
-#         Q: $q_star$ function; numpy array shape of [nS,nA]
-#         Qlogs: Q logs
-#         envlogs: (n, #s) logs
-#         visits: (n, #s, #a)
-#     """
-
-#     #####################
-#     # Pessimistic Q learning (ref. https://arxiv.org/pdf/2202.13890.pdf)
-#     #####################
-
-#     n = config.exp.steps
-#     exploration_steps = config.exp.exploration_steps
-#     alpha = config.pessimistic_q_learning.alpha
-#     gamma = config.gamma
-#     epsilon = config.pessimistic_q_learning.epsilon
-#     pessimism_coeff = config.pessimistic_q_learning.pessimism_coeff
-
-#     # Log Q value, cummulative reward, # of steps
-#     Qlogger = np.zeros((n, env.nS, env.nA,))
-#     Envlogs = np.zeros((n,2))
-#     VisitLogger = np.zeros((n, env.nS, env.nA), dtype=np.int64)
-
-#     pi = EGPolicy(PQ, epsilon, exploration_steps)
-#     visit = np.zeros(PQ.shape) + 1
-
-#     for i in range(n):
-#         s = env.reset()
-#         done = False
-#         c_r = 0
-#         while not done:
-#             a = pi.action(s, i)
-#             VisitLogger[i, s, a] += 1
-
-#             s1, r, done, _ = env.step(a)
-
-#             visit[s, a] += 1
-#             PQ[s, a] += alpha * (
-#                 r
-#                 + gamma * np.max(PQ[s1, :])
-#                 - PQ[s, a]
-#                 - (pessimism_coeff / visit[s, a])
-#             )
-#             s = s1
-#             pi.update(PQ)
-
-#             c_r += r
-
-#         Qlogger[i, ::] = PQ
-#         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
-
-#     return PQ, Qlogger, np.int64(Envlogs), VisitLogger
-
-
-# def MeanVarianceQ(
-#     env: gym.Env,
-#     config: EasyDict,
-#     MVQ: np.array,
-#     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-#     """
-#     input:
-#         env: environment
-#         config: config
-#         Q: initial Q function
-#     ret:
-#         Q: q_star function; numpy array shape of [nS,nA]
-#         Qlogs: Q logs
-#         envlogs: (n, #s) logs
-#         visits: (n, #s, #a)
-#     """
-
-#     #####################
-#     # Keep track of mean and variance rewards
-#     #####################
-
-#     n = config.exp.steps
-#     exploration_steps = config.exp.exploration_steps
-#     alpha = config.meanvar_q_learning.alpha
-#     gamma = config.gamma
-#     epsilon = config.meanvar_q_learning.epsilon
-#     coeff = config.meanvar_q_learning.coeff
-
-#     # Log Q value, cummulative reward, # of steps
-#     Qlogger = np.zeros((n, env.nS, env.nA,))
-#     Envlogs = np.zeros((n,2))
-#     VisitLogger = np.zeros((n, env.nS, env.nA), dtype=np.int64)
-
-#     pi = EGPolicy(MVQ, epsilon, exploration_steps)
-
-#     # track mean and variance of reward
-#     rs = [[RunningStats(20) for i in range(env.nA)] for k in range(env.nS)]
-
-#     for i in range(n):
-#         s = env.reset()
-#         done = False
-#         c_r = 0
-#         while not done:
-#             a = pi.action(s)
-
-#             VisitLogger[i, s, a] += 1
-
-#             s1, r, done, _ = env.step(a)
-
-#             rs[s][a].push(r)
-
-#             MVQ[s, a] += alpha * (
-#                 r
-#                 + gamma * np.max(MVQ[s1, :])
-#                 - MVQ[s, a]
-#                 - (0.1 * rs[s][a].n * rs[s][a].get_var())
-#             )
-#             s = s1
-
-#             c_r += r
-
-#         Qlogger[i, ::] = MVQ
-#         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
-
-#     del rs
-#     return MVQ, Qlogger, Envlogs, VisitLogger

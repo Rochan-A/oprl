@@ -284,16 +284,6 @@ def S(state, Q, T):
     Q_s = np.sum(Q[state], axis=1)
     return Q_s
 
-<<<<<<< HEAD
-    def action(self, state):
-        if np.random.random(1)[0] < self.epsilon:
-            return np.random.randint(0, self.Q.shape[-1])
-        else:
-            if np.sum(np.where(self.probs[state, :] == self.probs[state, :].max(), 1, 0)) == 1:
-                return np.argmax(self.probs[state, :])
-            else:
-                return np.random.choice(np.flatnonzero(self.probs[state, :] == self.probs[state, :].max()))
-=======
 
 def SA(state, action, Q, T):
     state = np.array([T[s] for s in state])
@@ -301,4 +291,3 @@ def SA(state, action, Q, T):
     idx = np.arange(len(action))
     Q_ret[idx] = np.sum(Q[state], axis=1)[idx, action]
     return Q_ret
->>>>>>> d9bb02a9c3c9783d399f23a1d31eea0c781030d8
