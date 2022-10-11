@@ -1,8 +1,10 @@
+"""
+Generates small renders of the map environments
+"""
 import matplotlib.image
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
-
 
 
 def _tokenizer(fname):

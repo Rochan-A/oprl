@@ -28,8 +28,6 @@ def load_experiments_and_env(path, algos, plots):
             load_data['env_loggers'][' '.join(key.split('/')[-1].split('_')[:-1])] = \
                     decompress_pickle(key)
 
-    print(load_data['env_loggers'].keys())
-
     load_data['q_loggers'] = {}
     if 'q_vals' in plots or 'v_vals' in plots:
         logger_files = glob.glob(join(path, 'store', '*_qvals.pbz2'))
@@ -48,18 +46,18 @@ def load_experiments_and_env(path, algos, plots):
 
     if 'mmbq' in algos and 'bandit' in plots:
         load_data['bandit']['q']['Maxmin Bandit Q'] = decompress_pickle(
-            join(path, 'store', 'Maxmin Bandit Q_bandit.pbz2')
+            join(path, 'store', 'Maxmin Bandit Q_bandit (lr=0.01).pbz2')
         )
         load_data['bandit']['est']['Maxmin Bandit Q'] = decompress_pickle(
-            join(path, 'store', 'Maxmin Bandit Q_estimator.pbz2')
+            join(path, 'store', 'Maxmin Bandit Q_estimator (lr=0.01).pbz2')
         )
 
     if 'mmbqv2' in algos and 'bandit' in plots:
         load_data['bandit']['q']['Maxmin Bandit Q v2'] = decompress_pickle(
-            join(path, 'store', 'Maxmin Bandit Q v2_bandit.pbz2')
+            join(path, 'store', 'Maxmin Bandit Q v2_bandit (lr=0.01).pbz2')
         )
         load_data['bandit']['est']['Maxmin Bandit Q v2'] = decompress_pickle(
-            join(path, 'store', 'Maxmin Bandit Q v2_estimator.pbz2')
+            join(path, 'store', 'Maxmin Bandit Q v2_estimator (lr=0.01).pbz2')
         )
 
     with open(join(path, 'config.yaml'), 'r') as f:
@@ -78,7 +76,7 @@ def load_experiments_and_env(path, algos, plots):
 
         # New env
         elif exp_config.model == 'filev2':
-            env = Maps(exp_config.env, 0)#exp_config.seed)
+            env = Maps(exp_config.env, exp_config.seed)
             env = MapsEnvModel(env)
 
         if 'file' in exp_config.model:

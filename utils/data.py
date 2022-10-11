@@ -137,34 +137,34 @@ def plot_mean_cum_rewards(data, exp_name, do_smooth=False, std_factor=0.5, fmt='
     labels = list(data.keys())
     means, stds = {}, {}
     for i, key in enumerate(data):
-        val = data[key][:, :4000, :]
+        val = data[key]
         # reward
         if do_smooth:
-            means[key] = smooth_exp(val[:, :, 0].mean(0, dtype=np.float64), 0.995)
+            means[key] = smooth_exp(val[:, :, 1].mean(0, dtype=np.float64), 0.995)
         else:
             means[key] = val[:, :, 0].mean(0, dtype=np.float64)
         stds[key] = val[:, :, 0].std(0, ddof=1, dtype=np.float64)
 
     fig, ax = plt.subplots(dpi=200)
     for i, key in enumerate(data):
-            #data[key].shape[-2]),
-        ax.plot(np.arange(
-            4000),
-            means[key],
-            label=labels[i],
-        )
-        ax.fill_between(
-            # np.arange(data[key].shape[-2]),
-            np.arange(4000),
-            means[key]-(stds[key]*std_factor),
-            means[key]+(stds[key]*std_factor),
-            alpha=0.1,
-        )
-        ax.set_xlabel('Steps')
-        ax.set_ylabel('Reward')
-        plt.tight_layout()
-        plt.legend()
-        plt.savefig(join(exp_name, 'reward_plot.{}'.format(fmt)), format=fmt, bbox_inches='tight')
+        #if 'Maxmin Bandit Q v2 (lr=0.01)' in key or ('Maxmin Q' in key and '(lr=0.01)' in key) or 'Vanilla Q (lr=0.01' in key: #  n=5 (lr=0.01)
+        if '(lr=0.01)' in key:
+            ax.plot(np.arange(
+                len(means[key])),
+                means[key],
+                label=labels[i],
+            )
+            ax.fill_between(
+                np.arange(data[key].shape[-2]),
+                means[key]-(stds[key]*std_factor),
+                means[key]+(stds[key]*std_factor),
+                alpha=0.4,
+            )
+    ax.set_xlabel('Steps')
+    ax.set_ylabel('Reward')
+    plt.tight_layout()
+    plt.legend()
+    plt.savefig(join(exp_name, 'reward_plot.{}'.format(fmt)), format=fmt, bbox_inches='tight')
 
 
 def plot_Q_values(env, q_star, data, exp_name, fmt='png'):
@@ -358,6 +358,8 @@ def plot_bandit(bandit, exp_name, fmt='png'):
         # ax.set_title("Bandit Selected Estimators ({})".format(key))
         ax.set_xlabel('Episode') # **** change to 'Steps' for Mountain Car ****
         ax.set_ylabel('Estimator')
+        ax.set_yticks(np.arange(6))
+        ax.set_yticklabels(np.arange(6))
         plt.tight_layout()
         # plt.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
         plt.savefig(join(exp_name, 'bandit', '{}-est.{}'.format(key, fmt)), format=fmt, bbox_inches='tight')

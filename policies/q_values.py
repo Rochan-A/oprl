@@ -275,7 +275,10 @@ def update(Q, state, action, delta, T, n_tiles):
     w = Q
     for idx, act in enumerate(action):
         s = T[state[idx]]
-        w[s, act] += delta[idx]/n_tiles
+        if len(w.shape) == 2:
+          w[s, act] += delta[idx]/n_tiles
+        elif len(w.shape) == 3:
+          w[idx, s, act] += delta[idx, idx]/n_tiles
     return w
 
 
@@ -286,8 +289,14 @@ def S(state, Q, T):
 
 
 def SA(state, action, Q, T):
-    state = np.array([T[s] for s in state])
-    Q_ret = np.zeros((state.shape[0]))
-    idx = np.arange(len(action))
-    Q_ret[idx] = np.sum(Q[state], axis=1)[idx, action]
+    if len(Q.shape) == 2:
+      state = np.array([T[s] for s in state])
+      Q_ret = np.zeros((state.shape[0]))
+      idx = np.arange(state.shape[0])
+      Q_ret[idx] = np.sum(Q[state, :], axis=1)[idx, action]
+    elif len(Q.shape) == 3:
+      state = np.array([T[s] for s in state])
+      Q_ret = np.zeros((Q.shape[0], state.shape[0]))
+      idx = np.arange(state.shape[0])
+      Q_ret[:, idx] = np.sum(Q[:, state, :], axis=2)[:, idx, action]
     return Q_ret

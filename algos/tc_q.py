@@ -1,19 +1,17 @@
-from distutils.command.upload import upload
 from typing import Tuple
 import numpy as np
 import gym
-import copy
+import copy, os, time
 
 from collections import deque
 from policies.tilecoding import TileCoder
 
-from policies.q_values import QLearningAgent, QLearningAgentGreedy, SA, S, update
+from policies.q_values import QLearningAgent, SA, S, update
 from easydict import EasyDict
 
-from utils.buffers import RunningStats
 from numpy_ringbuffer import RingBuffer
 
-from utils.data import *
+from utils.data import compress_pickle
 from utils.bandits import ExpWeights, Exp3, UCB
 
 
@@ -40,15 +38,12 @@ def get_min_q(Q: np.array, max_estimators, active_estimators=-1, fixed_estimator
         return np.amin( Q[ind, :, :], axis=0 ).squeeze()
 
 
-def get_min_q_reorder(Q: np.array, max_estimators, active_estimators=-1):
-    """Returns the minimum Q table"""
-    # idx = [i for i in range(max_estimators)] # List of all indices
-
-    # # boost latest updated estimator to first position
-    # idx.remove(boost)
-    # idx = list((boost,)) + idx
-    # Q = Q[idx, :, :]
-
+def get_min_q_reorder(Q: np.array, active_estimators):
+    """Returns the minimum Q table in fixed index order
+    
+    Args
+        Q: Q table
+        active_estimators: number of estimators currently used"""
     ind = np.arange(0, active_estimators)
     return np.amin( Q[ind, :, :], axis=0).squeeze(), Q
 
@@ -77,12 +72,12 @@ def Q_learning(
     # Q Learning (Hint: Sutton Book p. 131)
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.q_learning.alpha
     gamma = config.gamma
     epsilon = config.q_learning.epsilon
-    use_buffer = config.q_learning.use_buffer
     buffer_size = config.q_learning.buffer_size
     minibatch_size = config.q_learning.minibatch_size
     n_tiles = config.tc.num_tiles
@@ -92,14 +87,13 @@ def Q_learning(
 
     pi = QLearningAgent(T, Q, epsilon, exploration_steps, rng)
 
-    if use_buffer:
-        mem = [RingBuffer(capacity=buffer_size, dtype=(np.float, i)) for i in [
-                env.observation_space.shape[0],
-                1,
-                1,
-                env.observation_space.shape[0]
-                ]
+    mem = [RingBuffer(capacity=buffer_size, dtype=(float, i)) for i in [
+            env.observation_space.shape[0],
+            1,
+            1,
+            env.observation_space.shape[0]
             ]
+        ]
 
     for i in range(n):
         s = env.reset()
@@ -110,10 +104,10 @@ def Q_learning(
             a = pi.action(s, i)
             s1, r, done, _ = env.step(a)
 
-            mem[0].extendleft(np.array([s], dtype=np.float64))
-            mem[1].extendleft(np.array([a], dtype=np.float64))
-            mem[2].extendleft(np.array([r], dtype=np.float64))
-            mem[3].extendleft(np.array([s1], dtype=np.float64))
+            mem[0].append(np.array([s], dtype=np.float64))
+            mem[1].append(np.array([a], dtype=np.float64))
+            mem[2].append(np.array([r], dtype=np.float64))
+            mem[3].append(np.array([s1], dtype=np.float64))
 
             if len(mem[0]) == buffer_size:
                 sample_idx = np.random.choice(
@@ -134,7 +128,7 @@ def Q_learning(
             c_r += r
             step_count += 1
 
-        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
 
         if SAVE_WEIGHTS and i % 500 == 0 and i != 0:
             compress_pickle(
@@ -152,7 +146,10 @@ def Q_learning(
             }
         )
 
-    return Q, Envlogs
+    return {
+        'Q': Q,
+        'EnvLog': Envlogs
+    }
 
 
 def DoubleQ(
@@ -181,12 +178,12 @@ def DoubleQ(
     # Double Q Learning (Hint: Sutton Book p. 135-136)
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.dq_learning.alpha
     gamma = config.gamma
     epsilon = config.dq_learning.epsilon
-    use_buffer = config.dq_learning.use_buffer
     buffer_size = config.dq_learning.buffer_size
     minibatch_size = config.dq_learning.minibatch_size
     n_tiles = config.tc.num_tiles
@@ -204,14 +201,14 @@ def DoubleQ(
     else:
         pi = QLearningAgent(T, Q2, epsilon, exploration_steps, rng)
         A = False
-    if use_buffer:
-        mem = [RingBuffer(capacity=buffer_size, dtype=(np.float, i)) for i in [
-                env.observation_space.shape[0],
-                1,
-                1,
-                env.observation_space.shape[0]
-                ]
+
+    mem = [RingBuffer(capacity=buffer_size, dtype=(float, i)) for i in [
+            env.observation_space.shape[0],
+            1,
+            1,
+            env.observation_space.shape[0]
             ]
+        ]
 
     for i in range(n):
         s = env.reset()
@@ -223,10 +220,10 @@ def DoubleQ(
 
             s1, r, done, _ = env.step(a)
 
-            mem[0].extendleft(np.array([s], dtype=np.float64))
-            mem[1].extendleft(np.array([a], dtype=np.float64))
-            mem[2].extendleft(np.array([r], dtype=np.float64))
-            mem[3].extendleft(np.array([s1], dtype=np.float64))
+            mem[0].append(np.array([s], dtype=np.float64))
+            mem[1].append(np.array([a], dtype=np.float64))
+            mem[2].append(np.array([r], dtype=np.float64))
+            mem[3].append(np.array([s1], dtype=np.float64))
 
             if len(mem[0]) == buffer_size:
                 sample_idx = np.random.choice(
@@ -257,21 +254,19 @@ def DoubleQ(
                     pi.w = Q2
                     A = False
 
-            else:
-
-                if np.random.random() < 0.5:
-                    pi.w = Q1
-                    A = True
-                else:
-                    pi.w = Q2
-                    A = False
-
             s = s1
+
+            if np.random.random() < 0.5:
+                pi.w = Q1
+                A = True
+            else:
+                pi.w = Q2
+                A = False
 
             c_r += r
             step_count += 1
 
-        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
 
         if SAVE_WEIGHTS and i % 500 == 0 and i != 0:
             compress_pickle(
@@ -291,14 +286,18 @@ def DoubleQ(
             }
         )
 
-    return Q1, Q2, Envlogs 
+    return {
+        'Q1': Q1,
+        'Q2': Q2,
+        'EnvLog': Envlogs
+    } 
 
 
 def MaxminQ(
     env: gym.Env,
     config: EasyDict,
     estimators: int,
-    Q_init: np.array,
+    Q: np.array,
     T: TileCoder,
     rng,
     alpha
@@ -320,9 +319,10 @@ def MaxminQ(
     # Maxmin Q learning (ref. http://arxiv.org/abs/2002.06487)
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.mmq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmq_learning.epsilon
     buffer_size = config.mmq_learning.buffer_size
@@ -331,7 +331,7 @@ def MaxminQ(
 
     Envlogs = np.zeros((n, 2))
 
-    MMQ = np.repeat(Q_init[np.newaxis, :, :], estimators, axis=0)
+    MMQ = np.repeat(Q[np.newaxis, :, :], estimators, axis=0)
     Q_min = get_min_q(MMQ, None)
 
     pi = QLearningAgent(T, Q_min, epsilon, exploration_steps, rng)
@@ -353,10 +353,10 @@ def MaxminQ(
 
             s1, r, done, _ = env.step(a)
 
-            mem[0].extendleft(np.array([s], dtype=np.float64))
-            mem[1].extendleft(np.array([a], dtype=np.float64))
-            mem[2].extendleft(np.array([r], dtype=np.float64))
-            mem[3].extendleft(np.array([s1], dtype=np.float64))
+            mem[0].append(np.array([s], dtype=np.float64))
+            mem[1].append(np.array([a], dtype=np.float64))
+            mem[2].append(np.array([r], dtype=np.float64))
+            mem[3].append(np.array([s1], dtype=np.float64))
 
             if len(mem[0]) == buffer_size:
                 update_ind = np.random.choice(estimators)
@@ -380,7 +380,7 @@ def MaxminQ(
             c_r += r
             step_count += 1
 
-        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
 
         if SAVE_WEIGHTS and i % 500 == 0 and i != 0:
             compress_pickle(
@@ -402,13 +402,16 @@ def MaxminQ(
             }
         )
 
-    return Q_min, Envlogs
+    return {
+        'Q': Q_min,
+        'EnvLog': Envlogs
+    }
 
 
 def MaxminBanditQ(
     env: gym.Env,
     config: EasyDict,
-    Q_init: np.array,
+    Q: np.array,
     T: TileCoder,
     rng,
     alpha
@@ -430,9 +433,10 @@ def MaxminBanditQ(
     # Bandits to select # of estimators
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.mmbq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmbq_learning.epsilon
     max_estimators = config.mmbq_learning.max_estimators
@@ -448,7 +452,7 @@ def MaxminBanditQ(
     Bandit_logger = np.zeros((n, max_estimators, 2))
     Estimator_logger = np.zeros((n,), dtype=np.int64)
 
-    MMBQ = np.repeat(Q_init[np.newaxis, :, :], max_estimators, axis=0)
+    MMBQ = np.repeat(Q[np.newaxis, :, :], max_estimators, axis=0)
 
     active_estimators = TDC.sample()
 
@@ -457,7 +461,7 @@ def MaxminBanditQ(
 
     pi = QLearningAgent(T, Q_min, epsilon, exploration_steps, rng)
 
-    mem = [RingBuffer(capacity=buffer_size, dtype=(np.float, i)) for i in [
+    mem = [RingBuffer(capacity=buffer_size, dtype=(float, i)) for i in [
             env.observation_space.shape[0],
             1,
             1,
@@ -476,10 +480,10 @@ def MaxminBanditQ(
 
             s1, r, done, _ = env.step(a)
 
-            mem[0].extendleft(np.array([s], dtype=np.float64))
-            mem[1].extendleft(np.array([a], dtype=np.float64))
-            mem[2].extendleft(np.array([r], dtype=np.float64))
-            mem[3].extendleft(np.array([s1], dtype=np.float64))
+            mem[0].append(np.array([s], dtype=np.float64))
+            mem[1].append(np.array([a], dtype=np.float64))
+            mem[2].append(np.array([r], dtype=np.float64))
+            mem[3].append(np.array([s1], dtype=np.float64))
 
             if len(mem[0]) == buffer_size:
                 sample_idx = np.random.choice(
@@ -516,7 +520,7 @@ def MaxminBanditQ(
         Bandit_logger[i, :, 0] = TDC.get_values()
         Bandit_logger[i, :, 1] = num_a_est
 
-        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
         active_estimators = TDC.sample()
 
         if SAVE_WEIGHTS and i % 500 == 0 and i != 0:
@@ -539,13 +543,18 @@ def MaxminBanditQ(
             }
         )
 
-    return Q_min, Envlogs, Bandit_logger, Estimator_logger
+    return {
+        'Q': Q_min,
+        'EnvLog': Envlogs,
+        'BanditLog': Bandit_logger,
+        'EstimLog': Estimator_logger
+    }
 
 
 def MaxminBanditQ_v2(
     env: gym.Env,
     config: EasyDict,
-    Q_init: np.array,
+    Q: np.array,
     T: TileCoder,
     rng,
     alpha
@@ -567,9 +576,10 @@ def MaxminBanditQ_v2(
     # Bandits to select # of estimators
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.mmbq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmbq_learning.epsilon
     max_estimators = config.mmbq_learning.max_estimators
@@ -583,10 +593,9 @@ def MaxminBanditQ_v2(
     Bandit_logger = np.zeros((n, max_estimators, 2))
     Estimator_logger = np.zeros((n,), dtype=np.int64)
 
-    MMBQ = np.repeat(Q_init[np.newaxis, :, :], max_estimators, axis=0)
+    MMBQ = np.repeat(Q[np.newaxis, :, :], max_estimators, axis=0)
 
-    # TDC = Exp3(max_estimators, gamma=0.15)
-    TDC = ExpWeights(arms=[i for i in range(1, max_estimators+1)], init=1)
+    TDC = ExpWeights(arms=[i for i in range(1, max_estimators+1)], init=-1/max_estimators, use_std=True, window=10, lr=bandit_lr)
 
     num_a_est = np.zeros(max_estimators)
     est_upd_age = np.zeros(max_estimators)
@@ -617,15 +626,14 @@ def MaxminBanditQ_v2(
 
             s1, r, done, _ = env.step(a)
 
-            mem[0].extendleft(np.array([s], dtype=np.float64))
-            mem[1].extendleft(np.array([a], dtype=np.float64))
-            mem[2].extendleft(np.array([r], dtype=np.float64))
-            mem[3].extendleft(np.array([s1], dtype=np.float64))
+            mem[0].append(np.array([s], dtype=np.float64))
+            mem[1].append(np.array([a], dtype=np.float64))
+            mem[2].append(np.array([r], dtype=np.float64))
+            mem[3].append(np.array([s1], dtype=np.float64))
 
-            update_est_idx = 0
             if len(mem[0]) == buffer_size:
-                update_ind = np.random.choice(max_estimators)
-                est_upd_age[update_ind] = age
+                update_ind = np.random.choice(max_estimators, size=minibatch_size)
+                est_upd_age += np.bincount(update_ind, minlength=max_estimators)  # update estimators' age
                 idxs = np.argsort(est_upd_age)[::-1] # sort in decending order
                 
                 sample_idx = np.random.choice(
@@ -638,21 +646,20 @@ def MaxminBanditQ_v2(
                     mem[2][sample_idx], mem[3][sample_idx]
 
                 a_p = np.argmax(S(s1_, Q_min, T), axis=-1)
-                delta = alpha * (r_ + gamma * SA(s1_, a_p, Q_min, T) - SA(s_, a_, MMBQ[update_ind, :, :], T))
-                MMBQ[update_ind, :, :] = update(MMBQ[update_ind, :, :], s_, a_, delta, T, n_tiles)
+                delta = alpha * (r_ + gamma * SA(s1_, a_p, Q_min, T) - SA(s_, a_, MMBQ[update_ind, ::], T))
+                MMBQ[update_ind, ::] = update(MMBQ[update_ind, ::], s_, a_, delta, T, n_tiles)
 
             s = s1
-
-            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators)
-            pi.w = Q_min
 
             c_r += r
             step_count += 1
             age += 1
 
+            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], active_estimators)
+            pi.w = Q_min
 
         # Change based on env, used to normalize the cumulative reward
-        TDC.update((c_r+600)/800)
+        TDC.update(c_r/400)
 
         c_r_memory[active_estimators].append([step_count, active_estimators])
         if len(c_r_memory[active_estimators]) > reward_buffer:
@@ -663,11 +670,16 @@ def MaxminBanditQ_v2(
         Bandit_logger[i, :, 0] = TDC.get_values()
         Bandit_logger[i, :, 1] = num_a_est
 
-        Envlogs[i, 0], Envlogs[i, 1] = step_count, c_r
+        Envlogs[i, 0], Envlogs[i, 1] = c_r, step_count
 
         if i != n - 1:
             active_estimators = TDC.sample()
-            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators)
+            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], active_estimators)
             pi.w = Q_min
 
-    return Q_min, Envlogs, Bandit_logger, Estimator_logger
+    return {
+        'Q': Q_min,
+        'EnvLog': Envlogs,
+        'BanditLog': Bandit_logger,
+        'EstimLog': Estimator_logger
+    }

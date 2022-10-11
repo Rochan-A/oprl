@@ -1,14 +1,13 @@
 from typing import Tuple
 import numpy as np
 import gym
-import copy
+import copy, os, time
 
 from collections import deque
 
 from policies.q_values import EGPolicy
 from easydict import EasyDict
 
-from utils.buffers import RunningStats
 from numpy_ringbuffer import RingBuffer
 
 from utils.bandits import ExpWeights, Exp3, UCB
@@ -34,15 +33,12 @@ def get_min_q(Q: np.array, max_estimators, active_estimators=-1, fixed_estimator
         return np.amin( Q[ind, :, :], axis=0 ).squeeze()
 
 
-def get_min_q_reorder(Q: np.array, max_estimators, active_estimators=-1, boost=0):
-    """Returns the minimum Q table"""
-    idx = [i for i in range(max_estimators)] # List of all indices
-
-    # boost latest updated estimator to first position
-    # idx.remove(boost)
-    # idx = list((boost,)) + idx
-    # Q = Q[idx, :, :]
-
+def get_min_q_reorder(Q: np.array, active_estimators):
+    """Returns the minimum Q table in fixed index order
+    
+    Args
+        Q: Q table
+        active_estimators: number of estimators currently used"""
     ind = np.arange(0, active_estimators)
     return np.amin( Q[ind, :, :], axis=0).squeeze(), Q
 
@@ -67,15 +63,15 @@ def Q_learning(
     """
 
     #####################
-    # Q Learning (Hint: Sutton Book p. 131)
+    # Q Learning (Sutton Book p. 131)
     #####################
+
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
 
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.q_learning.alpha
     gamma = config.gamma
     epsilon = config.q_learning.epsilon
-    use_buffer = config.q_learning.use_buffer
     buffer_size = config.q_learning.buffer_size
     minibatch_size = config.q_learning.minibatch_size
 
@@ -88,8 +84,7 @@ def Q_learning(
     Q[terminal, :] = 0
 
     pi = EGPolicy(Q, epsilon, exploration_steps, rng)
-
-    mem = deque([], maxlen=config.q_learning.buffer_size)
+    mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
 
     for i in range(n):
         s = env.reset()
@@ -101,7 +96,7 @@ def Q_learning(
             VisitLogger[i, s, a] += 1
             s1, r, done, _ = env.step(a)
 
-            mem.extendleft(np.array([[s, a, r, s1]]))
+            mem.append([s, a, r, s1])
 
             if len(mem) == buffer_size:
                 sample_idx = np.random.choice(
@@ -125,7 +120,12 @@ def Q_learning(
         Qlogger[i, ::] = Q
         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
 
-    return Q, Qlogger, Envlogs, VisitLogger
+    return {
+        'Q': Q,
+        'QLog': Qlogger,
+        'EnvLog': Envlogs,
+        'VisitLog': VisitLogger
+    }
 
 
 def DoubleQ(
@@ -153,12 +153,12 @@ def DoubleQ(
     # Double Q Learning (Hint: Sutton Book p. 135-136)
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.dq_learning.alpha
     gamma = config.gamma
     epsilon = config.dq_learning.epsilon
-    use_buffer = config.dq_learning.use_buffer
     buffer_size = config.dq_learning.buffer_size
     minibatch_size = config.dq_learning.minibatch_size
 
@@ -183,7 +183,7 @@ def DoubleQ(
         pi = EGPolicy(Q2, epsilon, exploration_steps, rng)
         A = False
 
-    mem = deque([], maxlen=config.dq_learning.buffer_size)
+    mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
 
     for i in range(n):
         s = env.reset()
@@ -195,7 +195,7 @@ def DoubleQ(
 
             s1, r, done, _ = env.step(a)
 
-            mem.extendleft(np.array([[s, a, r, s1]]))
+            mem.append([s, a, r, s1])
             if len(mem) == buffer_size:
                 sample_idx = np.random.choice(
                     np.arange(0, len(mem)),
@@ -232,14 +232,21 @@ def DoubleQ(
         Qlogger2[i, :, :] = Q2[:, :]
         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
 
-    return Q1, Q2, Qlogger1, Qlogger2, Envlogs, VisitLogger
+    return {
+        'Q1': Q1,
+        'Q2': Q2,
+        'QLog': Qlogger1,
+        'Qlog2': Qlogger2,
+        'EnvLog': Envlogs,
+        'VisitLog': VisitLogger
+    }
 
 
 def MaxminQ(
     env: gym.Env,
     config: EasyDict,
     estimators: int,
-    Q_init: np.array,
+    Q: np.array,
     rng,
     alpha
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -260,9 +267,10 @@ def MaxminQ(
     # Maxmin Q learning (ref. http://arxiv.org/abs/2002.06487)
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.mmq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmq_learning.epsilon
     buffer_size = config.mmq_learning.buffer_size
@@ -272,7 +280,7 @@ def MaxminQ(
     Envlogs = np.zeros((n, 2))
     VisitLogger = np.zeros((n, env.nS, env.nA), dtype=np.int64)
 
-    MMQ = np.repeat(Q_init[np.newaxis, :, :], estimators, axis=0)
+    MMQ = np.repeat(Q[np.newaxis, :, :], estimators, axis=0)
     assert MMQ.shape == (estimators, env.nS, env.nA)
 
     terminal = env.final_state
@@ -282,9 +290,9 @@ def MaxminQ(
     assert Q_min.shape == (env.nS, env.nA)
 
     pi = EGPolicy(Q_min, epsilon, exploration_steps, rng)
-    mem = deque([], maxlen=buffer_size)
+    mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
 
-    for i in range( config.mmq_learning.steps ):
+    for i in range( n ):
         s = env.reset()
         done = False
         c_r = 0
@@ -323,13 +331,18 @@ def MaxminQ(
         MMQ_logger[i, :, :] = Q_min
         Envlogs[i, 0], Envlogs[i, 1] = c_r, env.step_count
 
-    return Q_min, MMQ_logger, Envlogs, VisitLogger
+    return {
+        'Q': Q_min,
+        'QLog': MMQ_logger,
+        'EnvLog': Envlogs,
+        'VisitLog': VisitLogger
+    }
 
 
 def MaxminBanditQ(
     env: gym.Env,
     config: EasyDict,
-    Q_init: np.array,
+    Q: np.array,
     rng,
     alpha
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -350,9 +363,10 @@ def MaxminBanditQ(
     # Bandits to select # of estimators
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.mmbq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmbq_learning.epsilon
     max_estimators = config.mmbq_learning.max_estimators
@@ -367,7 +381,7 @@ def MaxminBanditQ(
     Estimator_logger = np.zeros((n,), dtype=np.int64)
     VisitLogger = np.zeros((n, env.nS, env.nA), dtype=np.int64)
 
-    MMBQ = np.repeat(Q_init[np.newaxis, :, :], max_estimators, axis=0)
+    MMBQ = np.repeat(Q[np.newaxis, :, :], max_estimators, axis=0)
     assert MMBQ.shape == (max_estimators, env.nS, env.nA)
 
     TDC = UCB(max_estimators, bandit_lr)
@@ -384,7 +398,7 @@ def MaxminBanditQ(
 
     pi = EGPolicy(Q_min, epsilon, exploration_steps, rng)
 
-    mem = deque([], maxlen = buffer_size)
+    mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
     c_r_memory = deque([], maxlen = bandit_r_buf_len + 1)
 
     for i in range(n):
@@ -441,13 +455,20 @@ def MaxminBanditQ(
 
         active_estimators = TDC.sample()
 
-    return Q_min, MMBQ_logger, Envlogs, VisitLogger, Bandit_logger, Estimator_logger
+    return {
+        'Q': Q_min,
+        'QLog': MMBQ_logger,
+        'EnvLog': Envlogs,
+        'VisitLog': VisitLogger,
+        'BanditLog': Bandit_logger,
+        'EstimLog': Estimator_logger
+    }
 
 
 def MaxminBanditQ_v2(
     env: gym.Env,
     config: EasyDict,
-    Q_init: np.array,
+    Q: np.array,
     rng,
     alpha
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -468,15 +489,17 @@ def MaxminBanditQ_v2(
     # Bandits to select # of estimators
     #####################
 
+    np.random.seed((os.getpid() * int(time.time())) % 123456789)
+
     n = config.exp.steps
     exploration_steps = config.exp.exploration_steps
-    # alpha = config.mmbq_learning.alpha
     gamma = config.gamma
     epsilon = config.mmbq_learning.epsilon
     max_estimators = config.mmbq_learning.max_estimators
     buffer_size = config.mmbq_learning.buffer_size
     bandit_r_buf_len = config.mmbq_learning.cum_len
     minibatch_size = config.mmbq_learning.minibatch_size
+    bandit_lr = config.mmbq_learning.bandit_lr
 
     MMBQ_logger = np.empty((n, env.nS, env.nA,))
     Envlogs = np.empty((n , 2))
@@ -484,14 +507,14 @@ def MaxminBanditQ_v2(
     Estimator_logger = np.zeros((n,), dtype=np.int64)
     VisitLogger = np.zeros((n, env.nS, env.nA), dtype=np.int64)
 
-    MMBQ = np.repeat(Q_init[np.newaxis, :, :], max_estimators, axis=0)
+    MMBQ = np.repeat(Q[np.newaxis, :, :], max_estimators, axis=0)
     assert MMBQ.shape == (max_estimators, env.nS, env.nA)
 
-    TDC = ExpWeights(arms=[i for i in range(1, max_estimators+1)], init=1)
+    TDC = ExpWeights(arms=[i for i in range(1, max_estimators+1)], init=1/max_estimators, use_std=True, window=100, lr=bandit_lr)
 
-    num_a_est = np.zeros(max_estimators)
-    est_upd_age = np.zeros(max_estimators)
-    idxs = np.arange(0, max_estimators)
+    num_a_est = np.zeros(max_estimators)        # Track number of times estimator is selected
+    est_upd_age = np.zeros(max_estimators)      # Track time since last update to estimator
+    idxs = np.arange(0, max_estimators)         # Default indexing of estimators
 
     terminal = env.final_state
     MMBQ[:, terminal, :] = 0
@@ -503,7 +526,7 @@ def MaxminBanditQ_v2(
 
     pi = EGPolicy(Q_min, epsilon, exploration_steps, rng)
 
-    mem = deque([], maxlen = buffer_size)
+    mem = RingBuffer(capacity=buffer_size, dtype=(float, (4)))
     c_r_memory = [deque([], maxlen = bandit_r_buf_len + 1) for _ in range(max_estimators+1)]
 
     age = 0
@@ -521,9 +544,9 @@ def MaxminBanditQ_v2(
             mem.append([s, a, r, s1])
 
             if len(mem) == buffer_size:
-                update_ind = np.random.choice(max_estimators)
-                est_upd_age[update_ind] = age
-                idxs = np.argsort(est_upd_age)[::-1] # sort in decending order
+                update_ind = np.random.choice(max_estimators, minibatch_size)
+                est_upd_age += np.bincount(update_ind, minlength=max_estimators)  # update estimators' age
+                idxs = np.argsort(est_upd_age)[::-1]    # sort in decending order
 
                 sample_idx = np.random.choice(
                     np.arange(0, len(mem)),
@@ -547,11 +570,11 @@ def MaxminBanditQ_v2(
             c_r += r
             age += 1
 
-            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators)
+            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], active_estimators)
             pi.update(Q_min)
 
         # Change based on env, used to normalize the cumulative reward
-        TDC.update((c_r+1.5)/3)
+        TDC.update((np.clip(c_r, -1, 1)+1)/2)
 
         c_r_memory[active_estimators].append([c_r, active_estimators])
         if len(c_r_memory[active_estimators]) > bandit_r_buf_len:
@@ -567,7 +590,14 @@ def MaxminBanditQ_v2(
 
         if i != n - 1:
             active_estimators = TDC.sample()
-            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], max_estimators, active_estimators, boost=update_est_idx)
+            Q_min, MMBQ = get_min_q_reorder(MMBQ[idxs, :, :], active_estimators)
             pi.update(Q_min)
 
-    return Q_min, MMBQ_logger, Envlogs, VisitLogger, Bandit_logger, Estimator_logger
+    return {
+        'Q': Q_min,
+        'QLog': MMBQ_logger,
+        'EnvLog': Envlogs,
+        'VisitLog': VisitLogger,
+        'BanditLog': Bandit_logger,
+        'EstimLog': Estimator_logger
+    }

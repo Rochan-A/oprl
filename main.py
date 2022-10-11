@@ -1,3 +1,4 @@
+from asyncio.log import logger
 import numpy as np
 import ast
 from os.path import join
@@ -21,11 +22,10 @@ from envs import (
     NoisyReward,
     DelayedReward
 )
-from algos.dp import *
-from algos.q import *
+from algos.dp import value_iteration_gridworld
+from algos.q import Q_learning, DoubleQ, MaxminQ, MaxminBanditQ, MaxminBanditQ_v2
 from utils.data import *
-
-from tensorboardX import SummaryWriter
+from multiprocessing import Pool
 
 
 def set_initial_values(config, env, rng):
@@ -57,6 +57,184 @@ def set_initial_values(config, env, rng):
     else:
         assert False, 'unknown V value initialization'
     return V, Q
+
+
+def _wrapper(func, args):
+    """Wrapper to call function and pass dict args"""
+    return func(**args)
+
+
+def q_learning(Q, config, env, rng, env_loggers, loggers, visits):
+    """Q Learning runner"""
+    for _, lr in enumerate(config.q_learning.alpha):
+        VQ_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
+        VQ_EnvLogger = np.empty((config.exp.repeat, config.exp.steps, 2))
+        VQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
+
+        data = {
+            'env': env,
+            'config': config,
+            'Q': copy.deepcopy(Q),
+            'rng': rng,
+            'alpha': lr
+        }
+
+        with Pool(processes=config.exp.repeat) as pool:
+            results = [pool.apply_async(_wrapper, args=(Q_learning, data,)) for i in range(config.exp.repeat)]
+            returns = [r.get() for r in tqdm(results)]
+
+        for rep in range(config.exp.repeat):
+            VQ_Logger[rep, ::] = returns[rep]['QLog']
+            VQ_EnvLogger[rep, ::] = returns[rep]['EnvLog']
+            VQ_Visits[rep, ::] = returns[rep]['VisitLog']
+
+        env_loggers['Vanilla Q (lr={})'.format(lr)] = VQ_EnvLogger
+        loggers['Vanilla Q (lr={})'.format(lr)] = VQ_Logger
+        visits['Vanilla Q (lr={})'.format(lr)] = VQ_Visits
+
+    return env_loggers, loggers, visits
+
+
+def dq_learning(Q, config, env, rng, env_loggers, loggers, visits):
+    """DQ Learning runner"""
+    for _, lr in enumerate(config.dq_learning.alpha):
+        DQ1_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
+        DQ2_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
+        DQ_EnvLogger = np.empty((config.exp.repeat, config.exp.steps, 2))
+        DQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
+
+        data = {
+            'env': env,
+            'config': config,
+            'Q': copy.deepcopy(Q),
+            'rng': rng,
+            'alpha': lr
+        }
+
+        with Pool(processes=config.exp.repeat) as pool:
+            results = [pool.apply_async(_wrapper, args=(DoubleQ, data,)) for i in range(config.exp.repeat)]
+            returns = [r.get() for r in tqdm(results)]
+
+        for rep in range(config.exp.repeat):
+            DQ1_Logger[rep, ::] = returns[rep]['QLog']
+            DQ_EnvLogger[rep, ::] = returns[rep]['EnvLog']
+            DQ_Visits[rep, ::] = returns[rep]['VisitLog']
+
+        env_loggers['Double Q (lr={})'.format(lr)] = DQ_EnvLogger
+        loggers['Double Q1 (lr={})'.format(lr)] = DQ1_Logger
+        loggers['Double Q2 (lr={})'.format(lr)] = DQ2_Logger
+        visits['Double Q (lr={})'.format(lr)] = DQ_Visits
+
+    return env_loggers, loggers, visits
+
+
+def mmq_learning(Q, config, env, rng, estimators, env_loggers, loggers, visits):
+    """MMQ runner"""
+
+    for _, lr in enumerate(config.mmq_learning.alpha):
+        MMQ_Logger = np.empty(( config.exp.repeat, config.exp.steps, env.nS, env.nA))
+        MMQ_EnvLogger = np.empty(( config.exp.repeat, config.exp.steps, 2))
+        MMQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
+
+        data = {
+            'env': env,
+            'config': config,
+            'Q': copy.deepcopy(Q),
+            'rng': rng,
+            'alpha': lr,
+            'estimators': estimators
+        }
+
+        with Pool(processes=config.exp.repeat) as pool:
+            results = [pool.apply_async(_wrapper, args=(MaxminQ, data,)) for i in range(config.exp.repeat)]
+            returns = [r.get() for r in tqdm(results)]
+
+        for rep in range(config.exp.repeat):
+            MMQ_Logger[rep, ::] = returns[rep]['QLog']
+            MMQ_EnvLogger[rep, ::] = returns[rep]['EnvLog']
+            MMQ_Visits[rep, ::] = returns[rep]['VisitLog']
+
+        env_loggers['Maxmin Q n={} (lr={})'.format(estimators, lr)] = MMQ_EnvLogger
+        loggers['Maxmin Q n={} (lr={})'.format(estimators, lr)] = MMQ_Logger
+        visits['Maxmin Q n={} (lr={})'.format(estimators, lr)] = MMQ_Visits
+
+    return env_loggers, loggers, visits
+
+
+def mmbq_learning(Q, config, env, rng, env_loggers, loggers, visits, exp_name):
+    """MMBQ runner"""
+    for _, lr in enumerate(config.mmbq_learning.alpha):
+        MMBQ_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
+        MMBQ_EnvLogger = np.empty((config.exp.repeat, config.exp.steps, 2))
+        MMBQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
+        MMBQ_Bandit = np.empty((config.exp.repeat, config.exp.steps, config.mmbq_learning.max_estimators, 2))
+        MMBQ_Estimator = np.empty((config.exp.repeat, config.exp.steps), dtype=np.int64)
+
+        data = {
+            'env': env,
+            'config': config,
+            'Q': copy.deepcopy(Q),
+            'rng': rng,
+            'alpha': lr,
+        }
+
+        with Pool(processes=config.exp.repeat) as pool:
+            results = [pool.apply_async(_wrapper, args=(MaxminBanditQ, data,)) for i in range(config.exp.repeat)]
+            returns = [r.get() for r in tqdm(results)]
+
+        for rep in range(config.exp.repeat):
+            MMBQ_Logger[rep, ::] = returns[rep]['QLog']
+            MMBQ_EnvLogger[rep, ::] = returns[rep]['EnvLog']
+            MMBQ_Visits[rep, ::] = returns[rep]['VisitLog']
+            MMBQ_Bandit[rep, ::] = returns[rep]['BanditLog']
+            MMBQ_Estimator[rep, ::] = returns[rep]['EstimLog']
+
+        env_loggers['Maxmin Bandit Q (lr={})'.format(lr)] = MMBQ_EnvLogger
+        loggers['Maxmin Bandit Q (lr={})'.format(lr)] = MMBQ_Logger
+        visits['Maxmin Bandit Q (lr={})'.format(lr)] = MMBQ_Visits
+
+        compress_pickle(join(exp_name, 'store', 'Maxmin Bandit Q_bandit (lr={}).pbz2'.format(lr)), MMBQ_Bandit)
+        compress_pickle(join(exp_name, 'store', 'Maxmin Bandit Q_estimator (lr={}).pbz2'.format(lr)), MMBQ_Estimator)
+
+    return env_loggers, loggers, visits
+
+
+def mmbq_v2_learning(Q, config, env, rng, env_loggers, loggers, visits, exp_name):
+    """MMBQ V2 learner"""
+    for _, lr in enumerate(config.mmbq_learning.alpha):
+        MMBQ_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
+        MMBQ_EnvLogger = np.empty((config.exp.repeat, config.exp.steps, 2))
+        MMBQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
+        MMBQ_Bandit = np.empty((config.exp.repeat, config.exp.steps, config.mmbq_learning.max_estimators, 2))
+        MMBQ_Estimator = np.empty((config.exp.repeat, config.exp.steps), dtype=np.int64)
+
+        data = {
+            'env': env,
+            'config': config,
+            'Q': copy.deepcopy(Q),
+            'rng': rng,
+            'alpha': lr,
+        }
+
+        with Pool(processes=config.exp.repeat) as pool:
+            results = [pool.apply_async(_wrapper, args=(MaxminBanditQ_v2, data,)) for i in range(config.exp.repeat)]
+            returns = [r.get() for r in tqdm(results)]
+
+        for rep in range(config.exp.repeat):
+            MMBQ_Logger[rep, ::] = returns[rep]['QLog']
+            MMBQ_EnvLogger[rep, ::] = returns[rep]['EnvLog']
+            MMBQ_Visits[rep, ::] = returns[rep]['VisitLog']
+            MMBQ_Bandit[rep, ::] = returns[rep]['BanditLog']
+            MMBQ_Estimator[rep, ::] = returns[rep]['EstimLog']
+
+        env_loggers['Maxmin Bandit Q v2 (lr={})'.format(lr)] = MMBQ_EnvLogger
+        loggers['Maxmin Bandit Q v2 (lr={})'.format(lr)] = MMBQ_Logger
+        visits['Maxmin Bandit Q v2 (lr={})'.format(lr)] = MMBQ_Visits
+
+        compress_pickle(join(exp_name, 'store', 'Maxmin Bandit Q v2_bandit (lr={}).pbz2'.format(lr)), MMBQ_Bandit)
+        compress_pickle(join(exp_name, 'store', 'Maxmin Bandit Q v2_estimator (lr={}).pbz2'.format(lr)), MMBQ_Estimator)
+
+    return env_loggers, loggers, visits
 
 
 if __name__ == "__main__":
@@ -123,7 +301,6 @@ if __name__ == "__main__":
 
     else:
         assert False, 'Invalid env model args...'
-        quit()
 
     # Save experiment logs
     env_loggers = {}    # Log rewards, (config.exp.repeat, config.exp.steps)
@@ -143,148 +320,66 @@ if __name__ == "__main__":
     # Vanilla Q-learning
     if 'q' in config.perform:
         print("Vanilla Q Learning")
-        for idx, lr in enumerate(config.q_learning.alpha):
-            VQ_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
-            VQ_EnvLogger = np.empty((config.exp.repeat, config.exp.steps, 2))
-            VQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
-            for rep in tqdm(range(config.exp.repeat)):
-                _, VQ_Logger[rep, ::], VQ_EnvLogger[rep, ::], VQ_Visits[rep, ::] = Q_learning(
-                    env,
-                    config,
-                    copy.deepcopy(Q),
-                    rng,
-                    lr
-                )
-            env_loggers['Vanilla Q {}'.format(idx)] = VQ_EnvLogger
-            # loggers['Vanilla Q {}'.format(idx)] = VQ_Logger
-            # visits['Vanilla Q {}'.format(idx)] = VQ_Visits
+        env_loggers, loggers, visits = q_learning(Q, config, env, rng, env_loggers, loggers, visits)
 
-    # Save experiment values
-    save_experiments(
-        env_loggers,
-        loggers,
-        visits,
-        args.exp_name
-    )
+        # Save experiment values
+        save_experiments(
+            env_loggers,
+            loggers,
+            visits,
+            args.exp_name
+        )
 
     # Double Q-learning
     if 'dq' in config.perform:
         print("Double Q Learning")
-        for idx, lr in enumerate(config.dq_learning.alpha):
-            DQ1_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
-            DQ2_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
-            DQ_EnvLogger = np.empty((config.exp.repeat, config.exp.steps, 2))
-            DQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
-            for rep in tqdm(range(config.exp.repeat)):
-                _, _, DQ1_Logger[rep, ::], DQ2_Logger[rep, ::], DQ_EnvLogger[rep, ::], DQ_Visits[rep, ::] = DoubleQ(
-                    env,
-                    config,
-                    copy.deepcopy(Q),
-                    rng,
-                    lr
-                )
-            env_loggers['Double Q {}'.format(idx)] = DQ_EnvLogger
-            # loggers['Double Q1 {}'.format(idx)] = DQ1_Logger
-            # loggers['Double Q2 {}'.format(idx)] = DQ2_Logger
-            # visits['Double Q {}'.format(idx)] = DQ_Visits
+        env_loggers, loggers, visits = dq_learning(Q, config, env, rng, env_loggers, loggers, visits)
 
-    # Save experiment values
-    save_experiments(
-        env_loggers,
-        loggers,
-        visits,
-        args.exp_name
-    )
+        # Save experiment values
+        save_experiments(
+            env_loggers,
+            loggers,
+            visits,
+            args.exp_name
+        )
 
 
     # Perform Maxmin for 'n' different estimator counts
     if 'mmq' in config.perform:
         for estimators in config.mmq_learning.estimator_pools:
             print("Maxmin Q learning, n = {}".format(estimators))
-            for idx, lr in enumerate(config.dq_learning.alpha):
-                MMQ_Logger = np.empty(( config.exp.repeat, config.exp.steps, env.nS, env.nA))
-                MMQ_EnvLogger = np.empty(( config.exp.repeat, config.exp.steps, 2))
-                MMQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
-                for rep in tqdm(range(config.exp.repeat)):
-                    _, MMQ_Logger[rep, ::], MMQ_EnvLogger[rep, ::], MMQ_Visits[rep, ::] = MaxminQ(
-                        env,
-                        config,
-                        estimators,
-                        copy.deepcopy(Q),
-                        rng,
-                        lr
-                    )
-                env_loggers['Maxmin Q n_{} {}'.format(estimators, idx)] = MMQ_EnvLogger
-                # loggers['Maxmin Q n_{} {}'.format(estimators, idx)] = MMQ_Logger
-                # visits['Maxmin Q n_{} {}'.format(estimators, idx)] = MMQ_Visits
+            env_loggers, loggers, visits = mmq_learning(Q, config, env, rng, estimators, env_loggers, loggers, visits)
 
-    # Save experiment values
-    save_experiments(
-        env_loggers,
-        loggers,
-        visits,
-        args.exp_name
-    )
+        # Save experiment values
+        save_experiments(
+            env_loggers,
+            loggers,
+            visits,
+            args.exp_name
+        )
 
     # Maxmin Bandit Q learning
     if 'mmbq' in config.perform:
         print("Maxmin Bandit Q learning")
-        for idx, lr in enumerate(config.mmbq_learning.alpha):
-            MMBQ_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
-            MMBQ_EnvLogger = np.empty((config.exp.repeat, config.exp.steps, 2))
-            MMBQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
-            MMBQ_Bandit = np.empty((config.exp.repeat, config.exp.steps, config.mmbq_learning.max_estimators, 2))
-            MMBQ_Estimator = np.empty((config.exp.repeat, config.exp.steps), dtype=np.int64)
-            for rep in tqdm(range(config.exp.repeat)):
-                _, MMBQ_Logger[rep, :, :, :], MMBQ_EnvLogger[rep, ::], MMBQ_Visits[rep, ::], MMBQ_Bandit[rep, ::], MMBQ_Estimator[rep] = MaxminBanditQ(
-                    env,
-                    config,
-                    copy.deepcopy(Q),
-                    rng,
-                    lr
-                )
-            env_loggers['Maxmin Bandit Q {}'.format(idx)] = MMBQ_EnvLogger
-            # loggers['Maxmin Bandit Q'] = MMBQ_Logger
-            # visits['Maxmin Bandit Q'] = MMBQ_Visits
-        compress_pickle(join(args.exp_name, 'store', 'Maxmin Bandit Q_bandit.pbz2'), MMBQ_Bandit)
-        compress_pickle(join(args.exp_name, 'store', 'Maxmin Bandit Q_estimator.pbz2'), MMBQ_Estimator)
+        env_loggers, loggers, visits = mmbq_learning(Q, config, env, rng, env_loggers, loggers, visits, args.exp_name)
 
-    # Save experiment values
-    save_experiments(
-        env_loggers,
-        loggers,
-        visits,
-        args.exp_name
-    )
+        # Save experiment values
+        save_experiments(
+            env_loggers,
+            loggers,
+            visits,
+            args.exp_name
+        )
 
     # Maxmin Bandit Q learning v2
     if 'mmbq_v2' in config.perform:
         print("Maxmin Bandit Q learning V2")
-        for idx, lr in enumerate(config.mmbq_learning.alpha):
-            MMBQ_Logger = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA))
-            MMBQ_EnvLogger = np.empty((config.exp.repeat, config.exp.steps, 2))
-            MMBQ_Visits = np.empty((config.exp.repeat, config.exp.steps, env.nS, env.nA), dtype=np.int64)
-            MMBQ_Bandit = np.empty((config.exp.repeat, config.exp.steps, config.mmbq_learning.max_estimators, 2))
-            MMBQ_Estimator = np.empty((config.exp.repeat, config.exp.steps), dtype=np.int64)
-            for rep in tqdm(range(config.exp.repeat)):
-                _, MMBQ_Logger[rep, :, :, :], MMBQ_EnvLogger[rep, ::], MMBQ_Visits[rep, ::], MMBQ_Bandit[rep, ::], MMBQ_Estimator[rep] = MaxminBanditQ_v2(
-                    env,
-                    config,
-                    copy.deepcopy(Q),
-                    rng,
-                    lr
-                )
-            env_loggers['Maxmin Bandit Q v2'] = MMBQ_EnvLogger
-            # loggers['Maxmin Bandit Q v2'] = MMBQ_Logger
-            # visits['Maxmin Bandit Q v2'] = MMBQ_Visits
-        compress_pickle(join(args.exp_name, 'store', 'Maxmin Bandit Q v2_bandit.pbz2'), MMBQ_Bandit)
-        compress_pickle(join(args.exp_name, 'store', 'Maxmin Bandit Q v2_estimator.pbz2'), MMBQ_Estimator)
+        env_loggers, loggers, visits = mmbq_v2_learning(Q, config, env, rng, env_loggers, loggers, visits, args.exp_name)
 
-
-    # Save experiment values
-    save_experiments(
-        env_loggers,
-        loggers,
-        visits,
-        args.exp_name
-    )
+        # Save experiment values
+        save_experiments(
+            env_loggers,
+            loggers,
+            visits,
+            args.exp_name
+        )

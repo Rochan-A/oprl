@@ -3,6 +3,7 @@ import pdb
 from typing import List, Dict
 import random
 import math
+from scipy.special import softmax
 
 
 def categorical_draw(probs):
@@ -24,7 +25,7 @@ class ExpWeights(object):
         window: int = 5,
         decay: float = 0.9,
         init: float = 1.0,
-        use_std: bool = True,
+        use_std: bool = False,
     ) -> None:
         """Initialize bandit.
         Args:
@@ -54,8 +55,11 @@ class ExpWeights(object):
         Returns:
                 float: The value of the sampled arm.
         """
-        p = [np.exp(x) for x in self.w.values()]
-        p /= np.sum(p)  # normalize to make it a distribution
+        p = [x for x in self.w.values()]
+        if np.isnan(softmax(p)).any():
+            p = softmax(np.nan_to_num(p, nan=0.01))
+        else:
+            p = softmax(p)
         self.arm = np.random.choice(range(0, len(p)), p=p)
 
         self.value = self.arms[self.arm]
@@ -68,8 +72,11 @@ class ExpWeights(object):
         Returns:
                 List: probabilities for each arm.
         """
-        p = [np.exp(x) for x in self.w.values()]
-        p /= np.sum(p)  # normalize to make it a distribution
+        p = [x for x in self.w.values()]
+        if np.isnan(softmax(p)).any():
+            p = softmax(np.nan_to_num(p, nan=0.01))
+        else:
+            p = softmax(p)
         return p
 
     def get_values(self) -> List:
@@ -93,7 +100,7 @@ class ExpWeights(object):
         # normalize
         feedback -= np.mean(self.error_buffer)
         if self.use_std and len(self.error_buffer) > 1:
-            norm = np.std(self.error_buffer)
+            norm = np.clip(np.std(self.error_buffer), 0.001, None)
         feedback /= norm
 
         # update arm weights
@@ -154,10 +161,10 @@ class Exp3:
 class UCB(object):
     def __init__(self, max_estimators, lr, c=2) -> None:
         self.q_est = np.zeros(max_estimators)
-        self.num_a_est = np.zeros(max_estimators)
+        self.num_a_est = np.ones(max_estimators)
         self.lr = lr
         self.c = c
-        self.t = 0
+        self.t = 1
 
         self.active_estimator = np.random.randint(max_estimators)
 
@@ -167,7 +174,7 @@ class UCB(object):
         self.t += 1
 
     def get_probs(self):
-        return self.q_est + self.c * np.sqrt(np.log(self.t) / (self.num_a_est + 1e-8))
+        return self.q_est + self.c * np.sqrt(np.log(self.t) / (self.num_a_est))
 
     def get_values(self):
         return self.q_est

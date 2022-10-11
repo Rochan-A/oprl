@@ -19,9 +19,9 @@ OBJECT_TO_IDX = {
     "one_r": 4,         # Single time reward **** Not Implemented ****
     "rand_t": 5,        # Stochastic transition
     "hack": 6,          # Hack state, unlimited reward
-    "bank": 7,          # **** Not Implemented ****
-    "goal": 8,          # Episode terminates
-    "lava": 9,          # Episode terminates
+    "bank": 7,          # Episode terminates (no reward)
+    "goal": 8,          # Episode terminates (positive reward)
+    "lava": 9,          # Episode terminates (negative reward)
     "agent": 10,
 }
 
@@ -37,7 +37,7 @@ REWARDS = {
     4: 1,   # **** Not Implemented ****
     5: 0,
     6: 1,
-    7: 0,   # **** Not Implemented ****
+    7: 0,
     8: 1,
     9: -1,
     10: 0,
@@ -46,7 +46,7 @@ REWARDS = {
 
 
 # Terminal states
-TERMINAL = [OBJECT_TO_IDX['lava'], OBJECT_TO_IDX['goal']]
+TERMINAL = [OBJECT_TO_IDX['lava'], OBJECT_TO_IDX['goal'], OBJECT_TO_IDX['bank']]
 
 
 class DistanceBonus(gym.core.Wrapper):
