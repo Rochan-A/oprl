@@ -20,61 +20,83 @@ init: # How to initialize values (opt(1)/pes(-1)/zero/rand)
 
 # number of times to repeat Q learning algos due to randomness in e-greedy policy
 exp:
-  repeat: 10
+  repeat: 40
   steps: 10000 # episodes
-  exploration_steps: 40 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon decay)
+  exploration_steps: 100 # Explore for these many steps (with prob = 1) ignoring decay (set to 0 if you want to use epsilon strategy only)
 
-# Perform select experiments ('val_iter', 'q', 'dq', 'pq', 'mmq', 'meanvar', 'mmbq', 'mmbq_v2')
-perform: ['mmbq', 'mmbq_v2', 'mmq', 'q', 'dq', 'val_iter'] # 'mmq', 'pq', 'mmbq_v2'
+# Perform select experiments ('val_iter', 'q', 'dq', 'mmq', 'mmbq', 'mmbq_v2')
+perform: ['mmbq_v2']
 
 value_iteration_theta: 0.0001
 
 q_learning:
-  alpha: [0.1, 0.05, 0.01]
+  alpha: [0.05, 0.01, 0.005]  # Try different lr
   epsilon:
     strat: exp_interval  # Espilon decay to use (const/exp/linear)
     start: 0.1    # Starting value (for const, this value is used at every step)
     end: 0.01     # End value (for linear)
     decay: 0.99  # Epsilon decay rate
     steps: 40   # Number of steps to explore (Used for linear to get decay rate)
-  use_buffer: True
-  buffer_size: 100
-  minibatch_size: 10
+  buffer_size: 100  # Replay buffer size
+  minibatch_size: 10  # Updates per step
 
 dq_learning:
-  alpha: [0.1, 0.05, 0.01]
+  alpha: [0.05, 0.01, 0.005]
   epsilon:
     strat: exp_interval
     start: 0.1
     end: 0.01
     decay: 0.99
     steps: 40
-  use_buffer: True
   buffer_size: 100
   minibatch_size: 10
 
 mmq_learning:
-  alpha: [0.1, 0.05, 0.01]
+  alpha: [0.05, 0.01, 0.005]
   epsilon:
     strat: exp_interval
     start: 0.1
     end: 0.01
     decay: 0.99
     steps: 40
-  estimator_pools: [2, 4, 5]
+  estimator_pools: [2, 4, 5]  # Run for different N's (N=1 -> Vanilla Q)
   buffer_size: 100
   minibatch_size: 10
 
 mmbq_learning:
-  alpha: [0.1, 0.05, 0.01]
+  alpha: [0.01]
   epsilon:
     strat: exp_interval
     start: 0.1
     end: 0.01
     decay: 0.99
     steps: 40
-  max_estimators: 5
-  cum_len: 5
-  bandit_lr: 0.1
+  max_estimators: 5   # N_max
+  cum_len: 5    # (not used) buffer len to evaluate choice of 'N'
+  bandit_lr: 0.2  # Bandit lr
   buffer_size: 100
   minibatch_size: 10
+  algo: ucb
+  algo_params:
+    lr: 0.2
+    c: 2
+
+mmbq2_learning:
+  alpha: [0.01]
+  epsilon:
+    strat: exp_interval
+    start: 0.1
+    end: 0.01
+    decay: 0.99
+    steps: 40
+  max_estimators: 5   # N_max
+  cum_len: 5    # (not used) buffer len to evaluate choice of 'N'
+  bandit_lr: 0.2  # Bandit lr
+  buffer_size: 100
+  minibatch_size: 10
+  algo: thompson
+  algo_params:
+    window: 50
+    gamma: 0.2
+    alpha: 1
+    beta: 1

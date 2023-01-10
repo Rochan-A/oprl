@@ -222,9 +222,7 @@ class MapsEnvModel(gym.core.Wrapper):
         # skip if current state is terminal, or agent can't transition out from
         # there i.e., lava or goal
         if (
-            self.state[pos[0], pos[1]] != OBJECT_TO_IDX["lava"]
-            and self.state[pos[0], pos[1]] != OBJECT_TO_IDX["goal"]
-            and self.state[pos[0], pos[1]] != OBJECT_TO_IDX["wall"]
+            self.state[pos[0], pos[1]] not in TERMINAL
         ):
 
             # Move left

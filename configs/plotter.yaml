@@ -6,7 +6,7 @@ fmt: png # pdf/png
 
 # rewards plot
 cum_r:
-  algos: ['q', 'dq', 'mmq']
+  algos: ['mmbq_v2']
   smooth: True
   std_factor: 0.1
 
@@ -14,13 +14,13 @@ q_vals:
   algos: ['val_iter', 'q']
 
 v_vals:
-  algos: ['val_iter', 'q', 'dq', 'mmq']
+  algos: ['val_iter']
 
 visits:
-  algos: ['q', 'dq', 'mmq']
+  algos: ['q', 'dq']
   s_a: [1, 2]
 
 bandit:
-  algos: ['mmbq']
+  algos: ['mmbqv2', 'mmbq']
   q: True
   select: True

@@ -3,6 +3,10 @@ import numpy as np
 from os.path import join
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy import stats
+import pandas as pd
+modeval = lambda x : stats.mode(x)[0]
+
 # sns.set_style('darkgrid')
 
 SMALL_SIZE = 8
@@ -140,7 +144,7 @@ def plot_mean_cum_rewards(data, exp_name, do_smooth=False, std_factor=0.5, fmt='
         val = data[key]
         # reward
         if do_smooth:
-            means[key] = smooth_exp(val[:, :, 1].mean(0, dtype=np.float64), 0.995)
+            means[key] = smooth_exp(val[:, :, 0].mean(0, dtype=np.float64), 0.995)
         else:
             means[key] = val[:, :, 0].mean(0, dtype=np.float64)
         stds[key] = val[:, :, 0].std(0, ddof=1, dtype=np.float64)
@@ -353,6 +357,7 @@ def plot_bandit(bandit, exp_name, fmt='png'):
         labels = list(bandit['est'].keys())
         est_selected = bandit['est'][key][0, ::]
 
+        est_selected = pd.Series(est_selected).rolling(window=100).apply(modeval).dropna()
         fig, ax = plt.subplots(dpi=200)
         ax.scatter(np.arange(0, len(est_selected)), est_selected, marker='|', s=200)
         # ax.set_title("Bandit Selected Estimators ({})".format(key))
