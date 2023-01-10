@@ -48,7 +48,7 @@ def Q_learning(
     env: gym.Env,
     config: EasyDict,
     Q: np.ndarray,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
     ):
     """
@@ -132,7 +132,7 @@ def DoubleQ(
     env: gym.Env,
     config: EasyDict,
     Q: np.ndarray,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
     ):
     """
@@ -250,7 +250,7 @@ def MaxminQ(
     config: EasyDict,
     estimators: int,
     Q: np.array,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -350,7 +350,7 @@ def MaxminBanditQ(
     env: gym.Env,
     config: EasyDict,
     Q: np.array,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -484,7 +484,7 @@ def MaxminBanditQ_v2(
     env: gym.Env,
     config: EasyDict,
     Q: np.array,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """

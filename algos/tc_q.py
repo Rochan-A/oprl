@@ -55,7 +55,7 @@ def Q_learning(
     config: EasyDict,
     Q: np.ndarray,
     T: TileCoder,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
     ):
     """
@@ -146,7 +146,7 @@ def DoubleQ(
     config: EasyDict,
     Q: np.ndarray,
     T: TileCoder,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
     ):
     """
@@ -271,7 +271,7 @@ def MaxminQ(
     estimators: int,
     Q: np.array,
     T: TileCoder,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float,
     ):
     """
@@ -384,7 +384,7 @@ def MaxminBanditQ(
     config: EasyDict,
     Q: np.array,
     T: TileCoder,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
     ):
     """
@@ -537,7 +537,7 @@ def MaxminBanditQ_v2(
     config: EasyDict,
     Q: np.array,
     T: TileCoder,
-    rng: np.Generator,
+    rng: np.random.Generator,
     alpha: float
     ):
     """
